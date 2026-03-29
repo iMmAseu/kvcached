@@ -1,0 +1,40 @@
+total reqs:500/rates:5
+Total Pages Returned:            90
+UNMAP Pages:       0 / 500
+Unique Returned Pages: 10
+
+total reqs:1000/rates:5
+Total Pages Returned:            200
+UNMAP Pages:       0 / 1000
+Unique Returned Pages: 11
+
+total reqs:2000/rates:5
+Total Pages Returned:            250
+UNMAP Pages:       1 / 2000
+Unique Returned Pages: 11
+
+total reqs:4000/rates:5
+Total Pages Returned:            490
+UNMAP Pages:       1 / 4000
+Unique Returned Pages: 11
+
+total reqs:500/rates:10
+Total Pages Returned:            17
+UNMAP Pages:       2 / 500
+Unique Returned Pages: 13
+
+total reqs:1000/rates:10
+Total Pages Returned:            39
+UNMAP Pages:       5 / 500
+Unique Returned Pages: 15
+
+total reqs:2000/rates:10
+Total Pages Returned:            81
+UNMAP Pages:       10 / 500
+Unique Returned Pages: 20
+
+total reqs:4000/rates:10
+Total Pages Returned:            139
+UNMAP Pages:       13 / 500
+Unique Returned Pages: 22
+

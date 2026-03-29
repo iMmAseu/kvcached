@@ -136,12 +136,49 @@ if [ "$engine" == "vllm" ]; then
     if [ "$IS_L4" = true ]; then
         VLLM_L4_ARGS="--enforce-eager"
     fi
-    vllm serve "$MODEL" \
-    --disable-log-requests \
-    --no-enable-prefix-caching \
-    --port="$VLLM_PORT" \
-    --tensor-parallel-size="$TP_SIZE" \
-    $VLLM_L4_ARGS
+
+    # Optional: filter all server logs to only keep FREE/UNMAP related lines,
+    # then emit final summary + JSON report + Mermaid timeline.
+    if [[ "${KVCACHED_FREE_ONLY_LOG:-0}" == "1" || "${KVCACHED_FREE_ONLY_LOG,,}" == "true" ]]; then
+        export KVCACHED_FREE_DEBUG="${KVCACHED_FREE_DEBUG:-1}"
+        export KVCACHED_LOG_LEVEL="${KVCACHED_LOG_LEVEL:-DEBUG}"
+
+        FILTER_SCRIPT="$KVCACHED_DIR/tools/kvcached_free_log_filter.py"
+        FREE_LOG_PATH="${KVCACHED_FREE_LOG_PATH:-$KVCACHED_DIR/kvcached_free_only.log}"
+        FREE_REPORT_PATH="${KVCACHED_FREE_REPORT_JSON:-$KVCACHED_DIR/kvcached_free_summary.json}"
+        FREE_TIMELINE_PATH="${KVCACHED_FREE_TIMELINE:-$KVCACHED_DIR/kvcached_free_timeline.mmd}"
+
+        if command -v stdbuf >/dev/null 2>&1; then
+            stdbuf -oL -eL vllm serve "$MODEL" \
+                --disable-log-requests \
+                --no-enable-prefix-caching \
+                --port="$VLLM_PORT" \
+                --tensor-parallel-size="$TP_SIZE" \
+                $VLLM_L4_ARGS 2>&1 | \
+                $PYTHON "$FILTER_SCRIPT" \
+                    --log-path "$FREE_LOG_PATH" \
+                    --report-json "$FREE_REPORT_PATH" \
+                    --timeline-mermaid "$FREE_TIMELINE_PATH"
+        else
+            vllm serve "$MODEL" \
+                --disable-log-requests \
+                --no-enable-prefix-caching \
+                --port="$VLLM_PORT" \
+                --tensor-parallel-size="$TP_SIZE" \
+                $VLLM_L4_ARGS 2>&1 | \
+                $PYTHON "$FILTER_SCRIPT" \
+                    --log-path "$FREE_LOG_PATH" \
+                    --report-json "$FREE_REPORT_PATH" \
+                    --timeline-mermaid "$FREE_TIMELINE_PATH"
+        fi
+    else
+        vllm serve "$MODEL" \
+        --disable-log-requests \
+        --no-enable-prefix-caching \
+        --port="$VLLM_PORT" \
+        --tensor-parallel-size="$TP_SIZE" \
+        $VLLM_L4_ARGS
+    fi
     if [[ -n "$VENV_PATH" ]]; then deactivate; fi
 elif [ "$engine" == "sgl" -o "$engine" == "sglang" ]; then
     # Activate virtual environment if provided

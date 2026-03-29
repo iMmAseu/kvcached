@@ -1,7 +1,11 @@
 # SPDX-FileCopyrightText: Copyright contributors to the kvcached project
 # SPDX-License-Identifier: Apache-2.0
 
+import atexit
+import json
+import os
 import threading
+import time
 from collections import deque
 from typing import List, Optional, Tuple, cast
 
@@ -22,6 +26,109 @@ from kvcached.utils import (
 from kvcached.vmm_ops import map_to_kv_tensors, unmap_from_kv_tensors
 
 logger = get_kvcached_logger()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Page Free/Unmap Debug Stats (controlled by KVCACHED_FREE_DEBUG=1)
+# ═══════════════════════════════════════════════════════════════════════════════
+KVCACHED_FREE_DEBUG = os.environ.get("KVCACHED_FREE_DEBUG", "0") == "1"
+
+
+class _PageFreeDebugStats:
+    """Thread-safe stats collector for page free/unmap operations."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._start_time = time.time()
+        # free_pages stats
+        self.total_free_pages_calls = 0
+        self.total_pages_freed = 0
+        self.total_free_pages_time_ms = 0.0
+        # _unmap_pages stats
+        self.total_unmap_calls = 0
+        self.total_pages_unmapped = 0
+        self.total_unmap_time_ms = 0.0
+
+    def record_free_pages(self, num_pages: int, elapsed_ms: float):
+        with self._lock:
+            self.total_free_pages_calls += 1
+            self.total_pages_freed += num_pages
+            self.total_free_pages_time_ms += elapsed_ms
+
+    def record_unmap(self, num_pages: int, elapsed_ms: float):
+        with self._lock:
+            self.total_unmap_calls += 1
+            self.total_pages_unmapped += num_pages
+            self.total_unmap_time_ms += elapsed_ms
+
+    def print_summary(self):
+        with self._lock:
+            elapsed = time.time() - self._start_time
+            avg_unmap_ms = (self.total_unmap_time_ms / self.total_unmap_calls
+                            if self.total_unmap_calls else 0)
+        logger.info(
+            "\n"
+            "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+            "┃          PageAllocator  Debug Summary                   ┃\n"
+            "┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n"
+            f"┃  Duration:              {elapsed:>10.2f} s               ┃\n"
+            "┃                                                          ┃\n"
+            "┃  [free_pages]                                            ┃\n"
+            f"┃    Total Calls:         {self.total_free_pages_calls:>10d}                ┃\n"
+            f"┃    Total Pages Freed:   {self.total_pages_freed:>10d}                ┃\n"
+            f"┃    Total Time (ms):     {self.total_free_pages_time_ms:>10.3f}                ┃\n"
+            "┃                                                          ┃\n"
+            "┃  [_unmap_pages] (GPU Physical Memory Release)            ┃\n"
+            f"┃    Total Calls:         {self.total_unmap_calls:>10d}                ┃\n"
+            f"┃    Total Pages Unmapped:{self.total_pages_unmapped:>10d}                ┃\n"
+            f"┃    Total Time (ms):     {self.total_unmap_time_ms:>10.3f}                ┃\n"
+            f"┃    Avg Time / Call (ms):{avg_unmap_ms:>10.4f}                ┃\n"
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        )
+
+    def dump_json(self, path: str):
+        with self._lock:
+            elapsed = time.time() - self._start_time
+            report = {
+                "elapsed_total_s": round(elapsed, 2),
+                "free_pages": {
+                    "calls": self.total_free_pages_calls,
+                    "pages_freed": self.total_pages_freed,
+                    "total_time_ms": round(self.total_free_pages_time_ms, 3),
+                },
+                "unmap_pages": {
+                    "calls": self.total_unmap_calls,
+                    "pages_unmapped": self.total_pages_unmapped,
+                    "total_time_ms": round(self.total_unmap_time_ms, 3),
+                    "avg_time_per_call_ms": round(
+                        self.total_unmap_time_ms / self.total_unmap_calls, 4
+                    ) if self.total_unmap_calls else 0,
+                },
+            }
+        try:
+            with open(path, "w") as fp:
+                json.dump(report, fp, indent=2)
+            logger.info(f"Page debug report saved to: {path}")
+        except Exception as e:
+            logger.warning(f"Failed to save page debug report: {e}")
+
+
+_page_debug_stats: Optional[_PageFreeDebugStats] = None
+
+if KVCACHED_FREE_DEBUG:
+    _page_debug_stats = _PageFreeDebugStats()
+
+    def _on_page_exit():
+        if _page_debug_stats is not None:
+            _page_debug_stats.print_summary()
+            report_path = os.environ.get(
+                "KVCACHED_FREE_DEBUG_REPORT",
+                "kvcached_free_debug_report.json")
+            # Append page stats to the same report file if it exists
+            page_report_path = report_path.replace(".json",
+                                                   "_page.json")
+            _page_debug_stats.dump_json(page_report_path)
+
+    atexit.register(_on_page_exit)
 
 PREALLOC_THREAD_TIMEOUT: float = 2.0  # seconds
 
@@ -300,7 +407,12 @@ class PageAllocator:
             self._update_memory_usage()
             self._cond.notify_all()
 
-    def free_pages(self, page_ids: List[int]) -> None:
+    def free_pages(self, page_ids: List[int]) -> Tuple[int, float, List[int]]:
+        """Free pages, returning (num_unmapped, unmap_time_ms, unmapped_page_ids)."""
+        if KVCACHED_FREE_DEBUG:
+            t0 = time.perf_counter()
+            n_pages = len(page_ids)
+
         with self._lock:
             if SANITY_CHECK:
                 for page_id in page_ids:
@@ -321,15 +433,27 @@ class PageAllocator:
         if len(page_ids) == 0:
             # Update memory usage after fast path free/reserve
             self._update_memory_usage()
-            return
+            if KVCACHED_FREE_DEBUG and _page_debug_stats is not None:
+                elapsed_ms = (time.perf_counter() - t0) * 1000
+                _page_debug_stats.record_free_pages(n_pages, elapsed_ms)
+            return 0, 0.0, []
 
         # Slow path: free page_ids and their physical memory mapping.
+        num_unmapped = len(page_ids)
+        unmap_t0 = time.perf_counter()
         self._unmap_pages(page_ids)
+        unmap_time_ms = (time.perf_counter() - unmap_t0) * 1000
         with self._lock:
             self.free_page_list.extend(page_ids)
             # Update memory usage after unmapping pages
             self._update_memory_usage()
             self._cond.notify_all()
+
+        if KVCACHED_FREE_DEBUG and _page_debug_stats is not None:
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            _page_debug_stats.record_free_pages(n_pages, elapsed_ms)
+
+        return num_unmapped, unmap_time_ms, list(page_ids)
 
     def resize(self, new_mem_size: int) -> bool:
         new_num_pages = new_mem_size // self.page_size
@@ -532,6 +656,9 @@ class PageAllocator:
             map_to_kv_tensors(offsets)
 
     def _unmap_pages(self, page_ids: list[int]) -> None:
+        if KVCACHED_FREE_DEBUG:
+            t0 = time.perf_counter()
+
         if self.contiguous_layout:
             offsets = [
                 pid * self.page_size * self.num_layers * self.num_kv_buffers
@@ -545,6 +672,12 @@ class PageAllocator:
             if self.async_sched:
                 torch.cuda.synchronize()
             unmap_from_kv_tensors(offsets)
+
+        if KVCACHED_FREE_DEBUG and _page_debug_stats is not None:
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            _page_debug_stats.record_unmap(len(page_ids), elapsed_ms)
+            logger.debug(
+                f"[UNMAP] pages={len(page_ids)}  time={elapsed_ms:.3f}ms")
 
     def _update_memory_usage(self):
         """Update memory usage information in shared memory."""

@@ -1,0 +1,164 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 920" width="880" height="920">
+  <style>
+    svg, text, tspan {
+      font-family: 'Consolas', 'Courier New', monospace !important;
+      font-style: normal;
+    }
+    .title { font-size: 18px; font-weight: bold; fill: #1a1a1a; }
+    .box-label { font-size: 13px; font-weight: bold; fill: #fff; }
+    .box-sub { font-size: 11px; fill: #e0e0e0; }
+    .note { font-size: 11px; fill: #555; }
+    .file-label { font-size: 10px; fill: #888; font-style: normal; }
+    .arrow { stroke: #444; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    .arrow-yes { stroke: #2e7d32; stroke-width: 2; fill: none; marker-end: url(#arrowhead-green); }
+    .arrow-no { stroke: #c62828; stroke-width: 2; fill: none; marker-end: url(#arrowhead-red); }
+    .decision { font-size: 12px; fill: #1a1a1a; font-weight: bold; }
+    .branch-label { font-size: 11px; font-weight: bold; }
+    .yes-label { fill: #2e7d32; }
+    .no-label { fill: #c62828; }
+  </style>
+
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#444"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2e7d32"/>
+    </marker>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#c62828"/>
+    </marker>
+    <linearGradient id="grad-py" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1565c0"/>
+      <stop offset="100%" stop-color="#0d47a1"/>
+    </linearGradient>
+    <linearGradient id="grad-cpp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e65100"/>
+      <stop offset="100%" stop-color="#bf360c"/>
+    </linearGradient>
+    <linearGradient id="grad-cuda" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a148c"/>
+      <stop offset="100%" stop-color="#311b92"/>
+    </linearGradient>
+    <linearGradient id="grad-reserve" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2e7d32"/>
+      <stop offset="100%" stop-color="#1b5e20"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="880" height="920" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="440" y="35" text-anchor="middle" class="title">KVCacheManager.free() Call Chain</text>
+
+  <!-- Box 1: KVCacheManager.free() -->
+  <rect x="265" y="55" width="350" height="50" rx="6" fill="url(#grad-py)"/>
+  <text x="440" y="77" text-anchor="middle" class="box-label">KVCacheManager.free(indices)</text>
+
+  <!-- Arrow 1 -->
+  <line x1="440" y1="105" x2="440" y2="135" class="arrow"/>
+
+  <!-- Box 2: Group by page + free_batch -->
+  <rect x="265" y="135" width="350" height="50" rx="6" fill="url(#grad-py)"/>
+  <text x="440" y="157" text-anchor="middle" class="box-label">Group indices by page_id</text>
+
+  <!-- Arrow 2 to diamond -->
+  <line x1="440" y1="185" x2="440" y2="215" class="arrow"/>
+
+  <!-- Diamond: page.empty()? -->
+  <polygon points="440,215 540,255 440,295 340,255" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>
+  <text x="440" y="252" text-anchor="middle" class="decision">page.empty()?</text>
+  <text x="440" y="268" text-anchor="middle" class="note">all blocks freed?</text>
+
+  <!-- NO branch (right) -> stays in avail_pages -->
+  <line x1="540" y1="255" x2="690" y2="255" class="arrow-no"/>
+  <text x="555" y="248" class="branch-label no-label">NO</text>
+  <rect x="690" y="235" width="160" height="40" rx="6" fill="#ffcdd2" stroke="#c62828" stroke-width="1.5"/>
+  <text x="770" y="258" text-anchor="middle" style="font-size:12px; fill:#b71c1c; font-weight:bold;">avail_pages</text>
+  <text x="770" y="290" text-anchor="middle" class="note">page stays mapped</text>
+
+  <!-- YES branch (down) -->
+  <line x1="440" y1="295" x2="440" y2="325" class="arrow-yes"/>
+  <text x="452" y="315" class="branch-label yes-label">YES</text>
+
+  <!-- Box 3: page_allocator.free_pages() -->
+  <rect x="265" y="325" width="350" height="50" rx="6" fill="url(#grad-py)"/>
+  <text x="440" y="347" text-anchor="middle" class="box-label">PageAllocator.free_pages(page_ids)</text>
+
+  <!-- Arrow 3 to diamond2 -->
+  <line x1="440" y1="375" x2="440" y2="405" class="arrow"/>
+
+  <!-- Diamond 2: reserved pool full? -->
+  <polygon points="440,405 560,450 440,495 320,450" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="440" y="443" text-anchor="middle" class="decision">reserved_pool</text>
+  <text x="440" y="460" text-anchor="middle" class="decision">&lt; max (10)?</text>
+
+  <!-- YES branch (right) -> reserved_page_list (NO UNMAP) -->
+  <line x1="560" y1="450" x2="690" y2="450" class="arrow-yes"/>
+  <text x="575" y="443" class="branch-label yes-label">YES</text>
+  <rect x="690" y="425" width="160" height="50" rx="6" fill="url(#grad-reserve)"/>
+  <text x="770" y="447" text-anchor="middle" class="box-label">reserved_page_list</text>
+  <text x="770" y="492" text-anchor="middle" class="note">keep mapped for reuse</text>
+
+  <!-- NO branch (down) -> unmap -->
+  <line x1="440" y1="495" x2="440" y2="530" class="arrow-no"/>
+  <text x="452" y="518" class="branch-label no-label">NO</text>
+
+  <!-- Box 4: _unmap_pages -->
+  <rect x="265" y="530" width="350" height="50" rx="6" fill="url(#grad-py)"/>
+  <text x="440" y="552" text-anchor="middle" class="box-label">PageAllocator._unmap_pages(page_ids)</text>
+
+  <!-- Arrow to TP decision -->
+  <line x1="440" y1="580" x2="440" y2="610" class="arrow"/>
+
+  <!-- Diamond 3: TP > 1? -->
+  <polygon points="440,610 530,640 440,670 350,640" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2"/>
+  <text x="440" y="644" text-anchor="middle" class="decision">tp &gt; 1?</text>
+
+  <!-- YES branch (left) -> broadcast -->
+  <line x1="350" y1="640" x2="170" y2="640" class="arrow-yes"/>
+  <text x="335" y="633" class="branch-label yes-label">YES</text>
+  <rect x="30" y="618" width="140" height="44" rx="6" fill="url(#grad-py)" opacity="0.85"/>
+  <text x="100" y="638" text-anchor="middle" class="box-label" style="font-size:11px;">broadcast_unmap</text>
+
+  <!-- Arrow from broadcast down to unmap_from_kv_tensors -->
+
+  <!-- NO branch (right) -> direct call -->
+  <line x1="530" y1="640" x2="600" y2="640" class="arrow-no"/>
+  <text x="543" y="633" class="branch-label no-label">NO</text>
+
+  <!-- Arrow down from NO -->
+  <line x1="600" y1="640" x2="600" y2="710" class="arrow"/>
+
+  <!-- Box 5: C++ unmap_from_kv_tensors -->
+  <rect x="175" y="710" width="510" height="50" rx="6" fill="url(#grad-cpp)"/>
+  <text x="430" y="732" text-anchor="middle" class="box-label">FTensorAllocator::unmap_from_kv_tensors(offsets)</text>
+
+  <!-- Arrow 5 -->
+  <line x1="430" y1="760" x2="430" y2="795" class="arrow"/>
+
+  <!-- Box 6: FTensor::unmap -->
+  <rect x="225" y="795" width="410" height="50" rx="6" fill="url(#grad-cpp)"/>
+  <text x="430" y="817" text-anchor="middle" class="box-label">FTensor::unmap(offset)</text>
+
+  <!-- Arrow 6 -->
+  <line x1="430" y1="845" x2="430" y2="870" class="arrow"/>
+
+  <!-- Box 7: cuMemUnmap -->
+  <rect x="265" y="870" width="330" height="40" rx="6" fill="url(#grad-cuda)"/>
+  <text x="430" y="895" text-anchor="middle" class="box-label">cuMemUnmap() -> CUDA Driver API</text>
+
+  <!-- Legend -->
+  <rect x="20" y="55" width="200" height="120" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+  <text x="30" y="75" style="font-size:12px; font-weight:bold; fill:#333;">Legend</text>
+  <rect x="30" y="85" width="14" height="14" rx="2" fill="url(#grad-py)"/>
+  <text x="50" y="97" class="note">Python layer</text>
+  <rect x="30" y="105" width="14" height="14" rx="2" fill="url(#grad-cpp)"/>
+  <text x="50" y="117" class="note">C++ layer</text>
+  <rect x="30" y="125" width="14" height="14" rx="2" fill="url(#grad-cuda)"/>
+  <text x="50" y="137" class="note">CUDA driver</text>
+  <rect x="30" y="145" width="14" height="14" rx="2" fill="url(#grad-reserve)"/>
+  <text x="50" y="157" class="note">Fast path (no unmap)</text>
+</svg>
+

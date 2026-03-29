@@ -452,6 +452,25 @@ class GPUModelRunnerPatch(VersionAwarePatch, BasePatch):
                 return
 
             try:
+                from kvcached.runtime_stats import set_model_weight_bytes
+
+                model = getattr(self, "model", None)
+                if model is not None:
+                    model_weight_bytes = 0
+                    for p in model.parameters():
+                        model_weight_bytes += p.numel() * p.element_size()
+                    for b in model.buffers():
+                        model_weight_bytes += b.numel() * b.element_size()
+                    set_model_weight_bytes(model_weight_bytes)
+                    logger.info(
+                        "[kvcached] Captured model weights bytes: %.2f GB",
+                        model_weight_bytes / (1024**3),
+                    )
+            except Exception as e:
+                logger.debug(
+                    "[kvcached] Failed to capture model weights bytes: %s", e)
+
+            try:
                 self._init_kvcached()
             except Exception as e:
                 logger.warning("Failed to initialize kvcached, disabling: %s", e)

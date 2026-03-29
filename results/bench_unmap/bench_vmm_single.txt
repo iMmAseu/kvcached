@@ -1,0 +1,13 @@
+Total Free Memory: 22.3893GB
+====== cuMemMap ElemSz=1 ======
+
+cuMemAddressReserve (8GB) latency: 13 us
+
+Benchmarking with 1 threads and 4096 pages of size 2MB.
+---------------------------------------------------------------------------
+Operation      avg (us)       p50 (us)       p90 (us)       p99 (us)       max (us)       
+---------------------------------------------------------------------------
+cuMemCreate    15.74          13.00          24.00          34.00          176.00         
+cuMemMap       1.10           0.00           3.00           4.00           11.00          
+cuMemSetAccess 58.57          56.00          64.00          126.00         335.00         
+cuMemUnmap     36.13          34.00          36.00          60.00          236.00         

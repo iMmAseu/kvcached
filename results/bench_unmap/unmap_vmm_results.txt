@@ -1,0 +1,27 @@
+[setup] pure CUDA VMM batch unmap benchmark
+[setup] page_size=2MB repeats=20 warmup_repeats=3
+[setup] free_memory_gb=22.39
+[result] pages=  1 mean_unmapped=1.00/1 mean_unmap=0.0341ms p95=0.0346ms per_page=0.0341ms batch_unmap_bytes=2.00MB
+[result] pages=  2 mean_unmapped=2.00/2 mean_unmap=0.0667ms p95=0.0677ms per_page=0.0334ms batch_unmap_bytes=4.00MB
+[result] pages=  3 mean_unmapped=3.00/3 mean_unmap=0.0983ms p95=0.0995ms per_page=0.0328ms batch_unmap_bytes=6.00MB
+[result] pages=  4 mean_unmapped=4.00/4 mean_unmap=0.1318ms p95=0.1355ms per_page=0.0330ms batch_unmap_bytes=8.00MB
+[result] pages=  5 mean_unmapped=5.00/5 mean_unmap=0.1631ms p95=0.1671ms per_page=0.0326ms batch_unmap_bytes=10.00MB
+[result] pages=  6 mean_unmapped=6.00/6 mean_unmap=0.1948ms p95=0.1960ms per_page=0.0325ms batch_unmap_bytes=12.00MB
+[result] pages=  7 mean_unmapped=7.00/7 mean_unmap=0.2253ms p95=0.2267ms per_page=0.0322ms batch_unmap_bytes=14.00MB
+[result] pages=  8 mean_unmapped=8.00/8 mean_unmap=0.2577ms p95=0.2605ms per_page=0.0322ms batch_unmap_bytes=16.00MB
+[result] pages=  9 mean_unmapped=9.00/9 mean_unmap=0.2976ms p95=0.3103ms per_page=0.0331ms batch_unmap_bytes=18.00MB
+[result] pages= 10 mean_unmapped=10.00/10 mean_unmap=0.3200ms p95=0.3217ms per_page=0.0320ms batch_unmap_bytes=20.00MB
+[result] pages= 11 mean_unmapped=11.00/11 mean_unmap=0.3593ms p95=0.3608ms per_page=0.0327ms batch_unmap_bytes=22.00MB
+[result] pages= 12 mean_unmapped=12.00/12 mean_unmap=0.3891ms p95=0.3914ms per_page=0.0324ms batch_unmap_bytes=24.00MB
+[result] pages= 13 mean_unmapped=13.00/13 mean_unmap=0.4225ms p95=0.4340ms per_page=0.0325ms batch_unmap_bytes=26.00MB
+[result] pages= 14 mean_unmapped=14.00/14 mean_unmap=0.4710ms p95=0.4798ms per_page=0.0336ms batch_unmap_bytes=28.00MB
+[result] pages= 15 mean_unmapped=15.00/15 mean_unmap=0.5074ms p95=0.6063ms per_page=0.0338ms batch_unmap_bytes=30.00MB
+[result] pages= 16 mean_unmapped=16.00/16 mean_unmap=0.6860ms p95=1.2834ms per_page=0.0429ms batch_unmap_bytes=32.00MB
+[result] pages= 17 mean_unmapped=17.00/17 mean_unmap=0.5687ms p95=0.5806ms per_page=0.0335ms batch_unmap_bytes=34.00MB
+[result] pages= 18 mean_unmapped=18.00/18 mean_unmap=0.5983ms p95=0.6145ms per_page=0.0332ms batch_unmap_bytes=36.00MB
+[result] pages= 19 mean_unmapped=19.00/19 mean_unmap=0.6267ms p95=0.6437ms per_page=0.0330ms batch_unmap_bytes=38.00MB
+[result] pages= 20 mean_unmapped=20.00/20 mean_unmap=0.6673ms p95=0.6769ms per_page=0.0334ms batch_unmap_bytes=40.00MB
+[result] pages= 21 mean_unmapped=21.00/21 mean_unmap=0.7000ms p95=0.7164ms per_page=0.0333ms batch_unmap_bytes=42.00MB
+[result] pages= 22 mean_unmapped=22.00/22 mean_unmap=0.7350ms p95=0.7446ms per_page=0.0334ms batch_unmap_bytes=44.00MB
+[result] pages= 23 mean_unmapped=23.00/23 mean_unmap=0.7657ms p95=0.7805ms per_page=0.0333ms batch_unmap_bytes=46.00MB
+[result] pages= 24 mean_unmapped=24.00/24 mean_unmap=0.7984ms p95=0.8061ms per_page=0.0333ms batch_unmap_bytes=48.00MB

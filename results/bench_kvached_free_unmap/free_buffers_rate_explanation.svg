@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #1b1f23; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #4b5563; }
+      .section { font-size: 20px; font-weight: 700; }
+      .box-title { font-size: 16px; font-weight: 700; fill: #ffffff; }
+      .box-text { font-size: 13px; fill: #e5e7eb; }
+      .note { font-size: 13px; fill: #374151; }
+      .small { font-size: 12px; fill: #6b7280; }
+      .metric { font-size: 13px; fill: #111827; }
+      .legend { font-size: 12px; fill: #374151; }
+      .callout { font-size: 13px; fill: #111827; }
+      .axis { font-size: 12px; fill: #374151; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#374151"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="980" fill="#f8fafc"/>
+  <text x="46" y="58" class="title">kvcached free() multi-level buffers and why pages returned goes down then up</text>
+  <text x="46" y="86" class="subtitle">Data: 500 requests, req_rate 5..60. Returned pages: 93 -&gt; 16 -&gt; 63. Unmapped pages: 0 -&gt; 57.</text>
+
+  <!-- Left panel -->
+  <rect x="40" y="120" width="860" height="810" rx="14" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="62" y="156" class="section">A) Buffer hierarchy and free() path</text>
+
+  <!-- Engine -->
+  <rect x="70" y="184" width="320" height="84" rx="10" fill="#0f766e"/>
+  <text x="88" y="214" class="box-title">Engine request lifecycle</text>
+  <text x="88" y="236" class="box-text">request finished / preempt / transfer done</text>
+  <text x="88" y="255" class="box-text">free(block_ids)</text>
+
+  <!-- KVCM free -->
+  <rect x="70" y="304" width="380" height="108" rx="10" fill="#1d4ed8"/>
+  <text x="88" y="334" class="box-title">KVCacheManager.free(indices)</text>
+  <text x="88" y="356" class="box-text">group by page_id, then page.free_batch(idxs)</text>
+  <text x="88" y="375" class="box-text">only page.empty() pages go to pages_to_free</text>
+  <text x="88" y="394" class="box-text">total_pages_returned += len(pages_to_free)</text>
+
+  <path d="M 230 268 L 230 304" stroke="#374151" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Decision -->
+  <polygon points="260,450 360,510 260,570 160,510" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text x="206" y="506" class="callout" style="font-weight:700;">page.empty() ?</text>
+  <text x="181" y="526" class="small">all blocks in page are free</text>
+
+  <path d="M 260 412 L 260 450" stroke="#374151" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- No branch -->
+  <path d="M 360 510 L 520 510" stroke="#b91c1c" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+  <text x="385" y="497" class="small" style="fill:#b91c1c;font-weight:700;">NO</text>
+  <rect x="520" y="474" width="332" height="74" rx="10" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="538" y="503" class="callout" style="font-weight:700;">Page stays in avail_pages/full_pages</text>
+  <text x="538" y="524" class="small">only partial blocks freed, not counted in returned pages</text>
+
+  <!-- Yes branch -->
+  <path d="M 260 570 L 260 620" stroke="#15803d" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+  <text x="271" y="604" class="small" style="fill:#15803d;font-weight:700;">YES</text>
+
+  <rect x="70" y="626" width="430" height="80" rx="10" fill="#0f766e"/>
+  <text x="88" y="655" class="box-title">pages_to_free (whole pages only)</text>
+  <text x="88" y="676" class="box-text">this contributes to "pages returned"</text>
+  <text x="88" y="695" class="box-text">then call PageAllocator.free_pages(page_ids)</text>
+
+  <path d="M 500 666 L 600 666" stroke="#374151" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- PageAllocator -->
+  <rect x="600" y="612" width="252" height="108" rx="10" fill="#7c3aed"/>
+  <text x="616" y="643" class="box-title">PageAllocator.free_pages</text>
+  <text x="616" y="665" class="box-text">num_to_reserve = max_reserved -</text>
+  <text x="616" y="684" class="box-text">len(reserved_page_list)</text>
+  <text x="616" y="703" class="box-text">overflow pages -&gt; _unmap_pages</text>
+
+  <!-- Reserve and unmap branches -->
+  <path d="M 726 720 L 726 784" stroke="#15803d" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+  <rect x="560" y="784" width="330" height="58" rx="10" fill="#dcfce7" stroke="#22c55e"/>
+  <text x="576" y="808" class="callout" style="font-weight:700;">Fast path: reserved_page_list (mapped cache)</text>
+  <text x="576" y="828" class="small">reuse later without map cost</text>
+
+  <path d="M 600 676 L 476 758" stroke="#b91c1c" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+  <rect x="70" y="744" width="430" height="100" rx="10" fill="#991b1b"/>
+  <text x="88" y="776" class="box-title">Slow path: overflow -&gt; _unmap_pages</text>
+  <text x="88" y="798" class="box-text">broadcast_unmap / unmap_from_kv_tensors</text>
+  <text x="88" y="817" class="box-text">CUDA VMM cuMemUnmap</text>
+  <text x="88" y="836" class="box-text">page id moves to free_page_list (unmapped)</text>
+
+  <!-- Right panel -->
+  <rect x="928" y="120" width="632" height="810" rx="14" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="950" y="156" class="section">B) Why 93 -&gt; 16 -&gt; 63 and unmap keeps increasing</text>
+
+  <!-- Phase bands -->
+  <rect x="960" y="188" width="150" height="300" fill="#ecfeff" stroke="#a5f3fc"/>
+  <rect x="1110" y="188" width="190" height="300" fill="#fff7ed" stroke="#fed7aa"/>
+  <rect x="1300" y="188" width="220" height="300" fill="#f0fdf4" stroke="#bbf7d0"/>
+
+  <!-- Chart frame -->
+  <rect x="960" y="188" width="560" height="300" fill="none" stroke="#9ca3af"/>
+  <line x1="960" y1="488" x2="1520" y2="488" stroke="#6b7280" stroke-width="1.4"/>
+  <line x1="960" y1="188" x2="960" y2="488" stroke="#6b7280" stroke-width="1.4"/>
+
+  <!-- x ticks -->
+  <text x="955" y="506" class="axis">5</text>
+  <text x="1010" y="506" class="axis">10</text>
+  <text x="1060" y="506" class="axis">15</text>
+  <text x="1112" y="506" class="axis">20</text>
+  <text x="1162" y="506" class="axis">25</text>
+  <text x="1214" y="506" class="axis">30</text>
+  <text x="1264" y="506" class="axis">35</text>
+  <text x="1315" y="506" class="axis">40</text>
+  <text x="1365" y="506" class="axis">45</text>
+  <text x="1415" y="506" class="axis">50</text>
+  <text x="1465" y="506" class="axis">55</text>
+  <text x="1510" y="506" class="axis">60</text>
+  <text x="1200" y="528" class="axis">request rate (req/s)</text>
+
+  <!-- y labels -->
+  <text x="915" y="196" class="axis">100</text>
+  <text x="923" y="256" class="axis">80</text>
+  <text x="923" y="316" class="axis">60</text>
+  <text x="923" y="376" class="axis">40</text>
+  <text x="923" y="436" class="axis">20</text>
+  <text x="934" y="488" class="axis">0</text>
+  <text x="967" y="204" class="small">count (pages)</text>
+
+  <!-- pages returned line -->
+  <polyline
+    points="960,209 1011,398 1062,425 1113,434 1164,440 1215,419 1266,419 1317,401 1368,371 1419,344 1470,320 1520,299"
+    fill="none" stroke="#2563eb" stroke-width="3.2"/>
+  <circle cx="960" cy="209" r="4" fill="#2563eb"/>
+  <circle cx="1164" cy="440" r="4" fill="#2563eb"/>
+  <circle cx="1520" cy="299" r="4" fill="#2563eb"/>
+  <text x="972" y="222" class="legend" style="fill:#2563eb;font-weight:700;">pages returned: 93 -&gt; 16 -&gt; 63</text>
+
+  <!-- unmap line -->
+  <polyline
+    points="960,488 1011,479 1062,476 1113,470 1164,455 1215,440 1266,434 1317,416 1368,386 1419,362 1470,341 1520,317"
+    fill="none" stroke="#dc2626" stroke-width="3.2"/>
+  <circle cx="960" cy="488" r="4" fill="#dc2626"/>
+  <circle cx="1520" cy="317" r="4" fill="#dc2626"/>
+  <text x="972" y="478" class="legend" style="fill:#dc2626;font-weight:700;">pages unmapped: 0 -&gt; 57 (keeps rising)</text>
+
+  <!-- region notes -->
+  <text x="972" y="548" class="callout" style="font-weight:700;">Low rate (5)</text>
+  <text x="972" y="569" class="note">Requests overlap less, page occupancy is less mixed.</text>
+  <text x="972" y="588" class="note">More pages become fully free -&gt; high returned pages.</text>
+
+  <text x="1130" y="548" class="callout" style="font-weight:700;">Mid rate (10~25): returned drops</text>
+  <text x="1130" y="569" class="note">More concurrent requests co-reside in same page.</text>
+  <text x="1130" y="588" class="note">Single free() often releases partial blocks only.</text>
+  <text x="1130" y="607" class="note">So page.empty() triggers less often.</text>
+
+  <text x="1330" y="548" class="callout" style="font-weight:700;">High rate (30~60): returned rebounds</text>
+  <text x="1330" y="569" class="note">Page churn grows, more full-page clear events appear.</text>
+  <text x="1330" y="588" class="note">At the same time overflow beyond reserved pool increases,</text>
+  <text x="1330" y="607" class="note">so slow-path unmap dominates more and more.</text>
+
+  <!-- formulas -->
+  <rect x="960" y="642" width="560" height="120" rx="10" fill="#f9fafb" stroke="#e5e7eb"/>
+  <text x="978" y="670" class="metric" style="font-weight:700;">Metric semantics in code:</text>
+  <text x="978" y="694" class="metric">total_pages_returned += len(pages_to_free) in KVCacheManager.free()</text>
+  <text x="978" y="716" class="metric">num_unmapped = overflow pages after filling reserved_page_list in free_pages()</text>
+  <text x="978" y="738" class="metric">unmap path: _unmap_pages -&gt; unmap_from_kv_tensors -&gt; cuMemUnmap</text>
+
+  <text x="46" y="958" class="small">Figure generated locally for results/bench_kvached_free_unmap/500reqs_different_rates.csv and fig1 trend interpretation.</text>
+</svg>

@@ -33,6 +33,22 @@ Execute the compiled binary:
 
 The benchmark parameters (number of threads, page size, etc.) are defined as `constexpr` values at the top of `bench_vmm.cpp` and can be modified before compilation.
 
+## Multi-page UNMAP Comparison
+
+To compare looped page-wise unmap against a single contiguous-range
+`cuMemUnmap(ptr, size)` call, build and run:
+
+```bash
+make bench_vmm_unmap_compare.bin
+./bench_vmm_unmap_compare.bin --pages-list 1,2,4,8,16,24 --repeats 20 --warmup-repeats 3
+```
+
+This benchmark prints two result rows for each page count:
+
+- `[result][loop]`: unmaps pages one-by-one with repeated `cuMemUnmap`.
+- `[result][range]`: maps one contiguous allocation and unmaps it once with
+  `cuMemUnmap(ptr, total_size)`.
+
 ## Sample Output on A100
 
 ```

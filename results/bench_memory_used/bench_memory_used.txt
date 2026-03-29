@@ -1,0 +1,83 @@
+(EngineCore_DP0 pid=833401) KVCacheManager.free Memory Trend (sampled)
+(EngineCore_DP0 pid=833401)  t(s)  | call | blks | pg_ret | unmap | unmap_ms | rsvd_pg | inuse_pg | free_pg | avail_blk | cuda_used(GB) | cuda_free(GB)
+(EngineCore_DP0 pid=833401) ---------------------------------------------------------------------------------------------------------------------------
+(EngineCore_DP0 pid=833401) 331.65 |    1 |    9 |      0 |     0 |    0.000 |       5 |        1 |     170 |        19 |          5.97 |         17.68
+(EngineCore_DP0 pid=833401) 336.80 |   46 |   71 |      0 |     0 |    0.000 |       5 |        5 |     166 |       173 |          6.40 |         17.25
+(EngineCore_DP0 pid=833401) 340.73 |   92 |   39 |      0 |     0 |    0.000 |       5 |        6 |     165 |        75 |          6.51 |         17.14
+(EngineCore_DP0 pid=833401) 345.01 |  137 |   16 |      0 |     0 |    0.000 |       6 |        5 |     166 |       115 |          6.51 |         17.14
+(EngineCore_DP0 pid=833401) 350.08 |  182 |   28 |      0 |     0 |    0.000 |       5 |        7 |     164 |        97 |          6.62 |         17.03
+(EngineCore_DP0 pid=833401) 354.03 |  228 |   36 |      0 |     0 |    0.000 |       9 |        3 |     168 |        65 |          6.62 |         17.03
+(EngineCore_DP0 pid=833401) 358.69 |  273 |   18 |      0 |     0 |    0.000 |       9 |        3 |     168 |       112 |          6.62 |         17.03
+(EngineCore_DP0 pid=833401) 363.62 |  319 |   14 |      0 |     0 |    0.000 |       6 |        6 |     165 |        60 |          6.62 |         17.03
+(EngineCore_DP0 pid=833401) 366.91 |  364 |   42 |      0 |     0 |    0.000 |       5 |        7 |     164 |       314 |          6.62 |         17.03
+(EngineCore_DP0 pid=833401) 371.29 |  409 |   49 |      0 |     0 |    0.000 |       8 |        3 |     168 |        81 |          6.51 |         17.14
+(EngineCore_DP0 pid=833401) 376.34 |  455 |   49 |      0 |     0 |    0.000 |      10 |        1 |     170 |        60 |          6.51 |         17.14
+(EngineCore_DP0 pid=833401) 382.78 |  500 |   47 |      3 |     1 |    0.641 |      10 |        0 |     171 |         0 |          6.40 |         17.25
+(EngineCore_DP0 pid=833401) [kvcached][INFO][2026-03-23 22:22:18][kv_cache_manager.py:543] 
+(EngineCore_DP0 pid=833401) KVCacheManager State Trend (sampled)
+(EngineCore_DP0 pid=833401)  t(s)  | type  | reason                         | inuse_pg | rsvd_pg | kv_total(GB) | cuda_used(GB)
+(EngineCore_DP0 pid=833401) ---------------------------------------------------------------------------------------------------
+(EngineCore_DP0 pid=833401)  39.86 | state | post_init                    |        0 |       0 |         0.00 |          5.31
+(EngineCore_DP0 pid=833401) 336.69 | state | alloc(1)                     |        5 |       5 |         1.09 |          6.40
+(EngineCore_DP0 pid=833401) 340.66 | state | alloc(1)                     |        6 |       5 |         1.20 |          6.51
+(EngineCore_DP0 pid=833401) 344.83 | state | alloc(1)                     |        5 |       6 |         1.20 |          6.51
+(EngineCore_DP0 pid=833401) 349.72 | state | alloc(1)                     |        6 |       5 |         1.20 |          6.51
+(EngineCore_DP0 pid=833401) 354.11 | state | alloc(1)                     |        3 |       9 |         1.31 |          6.62
+(EngineCore_DP0 pid=833401) 358.92 | state | alloc(1)                     |        3 |       9 |         1.31 |          6.62
+(EngineCore_DP0 pid=833401) 363.13 | state | alloc(1)                     |        5 |       7 |         1.31 |          6.62
+(EngineCore_DP0 pid=833401) 366.11 | state | alloc(1)                     |        7 |       5 |         1.31 |          6.62
+(EngineCore_DP0 pid=833401) 371.28 | state | alloc(1)                     |        3 |       8 |         1.20 |          6.51
+(EngineCore_DP0 pid=833401) 377.13 | state | alloc(1)                     |        1 |      10 |         1.20 |          6.51
+(EngineCore_DP0 pid=833401) 384.81 | state | trim()                       |        0 |       0 |         0.00 |          5.31
+(EngineCore_DP0 pid=833401) [kvcached][INFO][2026-03-23 22:22:18][kv_cache_manager.py:546] 
+(EngineCore_DP0 pid=833401) KVCacheManager.free Page-ID Stats
+(EngineCore_DP0 pid=833401)   Unique Returned Pages: 13
+(EngineCore_DP0 pid=833401)   Unique Unmapped Pages: 3
+(EngineCore_DP0 pid=833401)   Returned Page IDs (preview): [0,1,2,3,4,5,6,7,8,9,10,11,12]
+(EngineCore_DP0 pid=833401)   Unmapped Page IDs (preview): [6,8,10]
+(EngineCore_DP0 pid=833401) [kvcached][INFO][2026-03-23 22:22:18][kv_cache_manager.py:575] 
+(EngineCore_DP0 pid=833401) CUDA Memory Breakdown (last sample)
+(EngineCore_DP0 pid=833401)   CUDA Used Total:        6.40 GB (100%)
+(EngineCore_DP0 pid=833401)   Model Weights:          n/a GB (n/a)
+(EngineCore_DP0 pid=833401)   KV Active (in-use):     0.00 GB (0.00%)
+(EngineCore_DP0 pid=833401)   KV Reserved (prealloc): 1.09 GB (17.08%)
+(EngineCore_DP0 pid=833401)   KV Total Mapped:        1.09 GB (17.08%)
+(EngineCore_DP0 pid=833401)   Non-KV Total:           5.31 GB (82.92%)
+(EngineCore_DP0 pid=833401)   Runtime Other (non-KV - model): n/a GB (n/a)
+(EngineCore_DP0 pid=833401) [kvcached][INFO][2026-03-23 22:22:18][kv_cache_manager.py:586] 
+(EngineCore_DP0 pid=833401) Non-KV Detailed Breakdown (last sample)
+(EngineCore_DP0 pid=833401)   [Torch allocator raw]
+(EngineCore_DP0 pid=833401)     torch.memory_allocated:   1.14 GB
+(EngineCore_DP0 pid=833401)     torch.memory_reserved:    2.64 GB
+(EngineCore_DP0 pid=833401)     torch.max_allocated:      2.52 GB
+(EngineCore_DP0 pid=833401)     torch.max_reserved:       2.67 GB
+(EngineCore_DP0 pid=833401)     torch.active_bytes:       1.14 GB
+(EngineCore_DP0 pid=833401)     torch.inactive_split:     0.08 GB
+(EngineCore_DP0 pid=833401)     torch.cached(resv-alloc): 1.50 GB
+(EngineCore_DP0 pid=833401)   [Non-KV partition]
+(EngineCore_DP0 pid=833401)     Non-KV in Torch reserved: 2.64 GB (49.73%)
+(EngineCore_DP0 pid=833401)     Non-KV Torch active:      1.14 GB (21.51%)
+(EngineCore_DP0 pid=833401)     Non-KV Torch cached:      1.50 GB (28.21%)
+(EngineCore_DP0 pid=833401)     Non-KV non-Torch:         2.67 GB (50.27%)
+(EngineCore_DP0 pid=833401)   [Model attribution]
+(EngineCore_DP0 pid=833401)     Model in Non-KV:          n/a GB (n/a)
+(EngineCore_DP0 pid=833401)     Runtime minus model:      n/a GB (n/a)
+(EngineCore_DP0 pid=833401) [kvcached][INFO][2026-03-23 22:22:18][kv_cache_manager.py:632] 
+(EngineCore_DP0 pid=833401) === UNMAP Events Detail ===
+(EngineCore_DP0 pid=833401) Total free() calls that triggered UNMAP: 3 / 500
+(EngineCore_DP0 pid=833401) call# |  t(s)  | blks | pg_ret | unmapped | unmap_ms | rsvd_pg | inuse_pg | avail_blk | cuda_used(GB) | cuda_free(GB)
+(EngineCore_DP0 pid=833401) ------------------------------------------------------------------------------------------------------------------------
+(EngineCore_DP0 pid=833401)   149 | 346.03 |   23 |      5 |        1 |    0.419 |      10 |        0 |         0 |          6.40 |         17.25
+(EngineCore_DP0 pid=833401)   386 | 369.29 |   66 |      4 |        1 |    0.738 |      10 |        1 |        27 |          6.51 |         17.14
+(EngineCore_DP0 pid=833401)   500 | 382.78 |   47 |      3 |        1 |    0.641 |      10 |        0 |         0 |          6.40 |         17.25
+(EngineCore_DP0 pid=833401) [kvcached][INFO][2026-03-23 22:22:18][kv_cache_manager.py:662] 
+(EngineCore_DP0 pid=833401) === Memory Lifecycle Proof (sampled) ===
+(EngineCore_DP0 pid=833401)   baseline: reason=post_init  t=39.861s  inuse=0  reserved=0  returned=0  unmapped=None  kv_total=0.00GB  cuda_used=5.31GB  delta_kv_total=n/aGB  delta_cuda=n/aGB
+(EngineCore_DP0 pid=833401)   running_peak: reason=free()  t=350.053s  inuse=7  reserved=5  returned=0  unmapped=0  kv_total=1.31GB  cuda_used=6.62GB  delta_kv_total=0.11GB  delta_cuda=0.11GB
+(EngineCore_DP0 pid=833401)   logical_free_no_unmap: reason=free()  t=352.659s  inuse=2  reserved=10  returned=4  unmapped=0  kv_total=1.31GB  cuda_used=6.62GB  delta_kv_total=n/aGB  delta_cuda=n/aGB
+(EngineCore_DP0 pid=833401)   unmap_event: reason=trim()  t=384.805s  inuse=0  reserved=0  returned=0  unmapped=None  kv_total=0.00GB  cuda_used=5.31GB  delta_kv_total=-1.09GB  delta_cuda=-1.09GB
+(EngineCore_DP0 pid=833401)   compound_page_bytes=0.11GB  cuda_stable_tolerance=0.25GB
+(EngineCore_DP0 pid=833401)   max_cuda_drop_without_unmap=0.00GB  max_cuda_drop_with_unmap=1.09GB
+(EngineCore_DP0 pid=833401)   [PASS] request running: KV cache makes GPU memory go up
+(EngineCore_DP0 pid=833401)   [PASS] after free(): logical release can happen while GPU memory stays high
+(EngineCore_DP0 pid=833401)   [PASS] only unmap/cuMemUnmap makes a real GPU-memory drop observable

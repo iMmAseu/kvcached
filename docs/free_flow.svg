@@ -1,0 +1,179 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="2100" height="1650" viewBox="0 0 2100 1650">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155" />
+    </marker>
+    <style><![CDATA[
+      text {
+        font-family: 'DejaVu Sans Mono', 'Noto Sans Mono', 'Consolas', 'Courier New', monospace;
+        fill: #0f172a;
+      }
+      .title { font-size: 28px; font-weight: 700; }
+      .subtitle { font-size: 14px; fill: #334155; }
+      .lane { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 14; }
+      .lane-title { font-size: 18px; font-weight: 700; fill: #1e293b; }
+      .box { fill: #ffffff; stroke: #334155; stroke-width: 2; rx: 10; }
+      .decision { fill: #fff7ed; stroke: #ea580c; stroke-width: 2; }
+      .boxtext { font-size: 14px; }
+      .small { font-size: 12px; fill: #475569; }
+      .arrow { stroke: #334155; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .hint { font-size: 12px; fill: #64748b; }
+    ]]></style>
+  </defs>
+
+  <text x="60" y="44" class="title">kvcached free() End-to-End Flow</text>
+  <text x="60" y="66" class="subtitle">From engine free interfaces to CUDA VMM unmap (all text uses one unified font-family)</text>
+
+  <rect x="40" y="90" width="2020" height="210" class="lane"/>
+  <text x="60" y="120" class="lane-title">Layer 1: Engine Free Interfaces</text>
+
+  <rect x="70" y="140" width="620" height="56" class="box"/>
+  <text x="86" y="163" class="boxtext">SGLang: ElasticTokenToKVPoolAllocator.free(free_index)</text>
+  <text x="86" y="182" class="small">kvcached/integration/sglang/patches.py:89</text>
+
+  <rect x="70" y="214" width="620" height="56" class="box"/>
+  <text x="86" y="237" class="boxtext">SGLang: ElasticPagedTokenToKVPoolAllocator.free(free_index)</text>
+  <text x="86" y="256" class="small">kvcached/integration/sglang/patches.py:264</text>
+
+  <rect x="740" y="176" width="610" height="56" class="box"/>
+  <text x="756" y="199" class="boxtext">vLLM: ElasticBlockPool.free_blocks(ordered_blocks)</text>
+  <text x="756" y="218" class="small">kvcached/integration/vllm/patches.py:122</text>
+
+  <rect x="1400" y="168" width="620" height="72" class="box"/>
+  <text x="1416" y="192" class="boxtext">Normalize input to block indices</text>
+  <text x="1416" y="212" class="boxtext">then call KVCacheManager.free(indices)</text>
+  <text x="1416" y="231" class="small">vLLM block_id list / SGLang tensor->list conversion</text>
+
+  <path d="M690 168 L1400 190" class="arrow"/>
+  <path d="M690 242 L1400 205" class="arrow"/>
+  <path d="M1350 204 L1400 204" class="arrow"/>
+
+  <rect x="40" y="320" width="2020" height="170" class="lane"/>
+  <text x="60" y="350" class="lane-title">Layer 2: KVCacheManager API Boundary</text>
+
+  <rect x="640" y="380" width="820" height="68" class="box"/>
+  <text x="656" y="405" class="boxtext">KVCacheManager.free(indices: List[int])</text>
+  <text x="656" y="425" class="small">kvcached/kv_cache_manager.py:884</text>
+
+  <path d="M1710 240 L1060 380" class="arrow"/>
+
+  <rect x="40" y="510" width="2020" height="340" class="lane"/>
+  <text x="60" y="540" class="lane-title">Layer 3: KVCacheManager Internal Free Logic</text>
+
+  <rect x="80" y="570" width="300" height="62" class="box"/>
+  <text x="96" y="595" class="boxtext">_wait_post_init()</text>
+  <text x="96" y="614" class="small">kv_cache_manager.py:885</text>
+
+  <rect x="430" y="570" width="420" height="62" class="box"/>
+  <text x="446" y="595" class="boxtext">Group indices by page_id</text>
+  <text x="446" y="614" class="small">get_page_id(idx, block_mem_size) @ line 902</text>
+
+  <rect x="900" y="560" width="600" height="118" class="box"/>
+  <text x="916" y="586" class="boxtext">For each page:</text>
+  <text x="916" y="606" class="boxtext">1) pop from full_pages/avail_pages</text>
+  <text x="916" y="626" class="boxtext">2) page.free_batch(idxs)</text>
+  <text x="916" y="646" class="boxtext">3) empty ? pages_to_free.append(page_id)</text>
+  <text x="916" y="665" class="small">kv_cache_manager.py:906-933</text>
+
+  <rect x="1540" y="570" width="420" height="62" class="box"/>
+  <text x="1556" y="595" class="boxtext">Build pages_to_free list</text>
+  <text x="1556" y="614" class="small">kv_cache_manager.py:905</text>
+
+  <polygon points="1710,690 1830,740 1710,790 1590,740" class="decision"/>
+  <text x="1640" y="736" class="boxtext">pages_to_free</text>
+  <text x="1666" y="756" class="boxtext">empty?</text>
+
+  <rect x="1850" y="706" width="180" height="62" class="box"/>
+  <text x="1866" y="732" class="boxtext">Return</text>
+  <text x="1866" y="751" class="small">no unmap</text>
+
+  <path d="M1060 448 L1060 570" class="arrow"/>
+  <path d="M380 601 L430 601" class="arrow"/>
+  <path d="M850 601 L900 601" class="arrow"/>
+  <path d="M1500 601 L1540 601" class="arrow"/>
+  <path d="M1750 632 L1750 690" class="arrow"/>
+  <path d="M1830 740 L1850 737" class="arrow"/>
+  <text x="1815" y="690" class="hint">yes</text>
+  <text x="1840" y="784" class="hint">no</text>
+
+  <rect x="40" y="870" width="2020" height="260" class="lane"/>
+  <text x="60" y="900" class="lane-title">Layer 4: PageAllocator Free / Unmap Decision</text>
+
+  <rect x="120" y="940" width="700" height="84" class="box"/>
+  <text x="136" y="968" class="boxtext">PageAllocator.free_pages(page_ids)</text>
+  <text x="136" y="988" class="boxtext">update num_free_pages + reserve as many pages as possible</text>
+  <text x="136" y="1007" class="small">kvcached/page_allocator.py:408-430</text>
+
+  <rect x="870" y="940" width="500" height="84" class="box"/>
+  <text x="886" y="968" class="boxtext">Fast path: remaining page_ids == 0</text>
+  <text x="886" y="988" class="boxtext">return (0, 0.0, [])</text>
+  <text x="886" y="1007" class="small">page_allocator.py:431-437</text>
+
+  <rect x="1420" y="930" width="590" height="118" class="box"/>
+  <text x="1436" y="958" class="boxtext">Slow path: _unmap_pages(page_ids)</text>
+  <text x="1436" y="978" class="boxtext">then free_page_list.extend(page_ids)</text>
+  <text x="1436" y="998" class="boxtext">return (num_unmapped, unmap_time_ms, ids)</text>
+  <text x="1436" y="1017" class="small">page_allocator.py:439-454</text>
+
+  <path d="M1630 790 L520 940" class="arrow"/>
+  <path d="M820 982 L870 982" class="arrow"/>
+  <path d="M820 1002 L1420 988" class="arrow"/>
+  <text x="836" y="972" class="hint">all reserved</text>
+  <text x="1090" y="979" class="hint">still needs unmap</text>
+
+  <rect x="40" y="1150" width="2020" height="230" class="lane"/>
+  <text x="60" y="1180" class="lane-title">Layer 5: TP-IPC / Python VMM Bridge</text>
+
+  <rect x="120" y="1210" width="700" height="72" class="box"/>
+  <text x="136" y="1237" class="boxtext">_unmap_pages(page_ids): offsets = pid * page_size * num_layers * num_kv_buffers</text>
+  <text x="136" y="1257" class="small">page_allocator.py:656-667</text>
+
+  <polygon points="980,1208 1120,1246 980,1284 840,1246" class="decision"/>
+  <text x="915" y="1243" class="boxtext">tp_size &gt; 1 ?</text>
+
+  <rect x="1180" y="1196" width="430" height="100" class="box"/>
+  <text x="1196" y="1222" class="boxtext">broadcast_unmap_from_kv_tensors(tp_size, offsets)</text>
+  <text x="1196" y="1242" class="boxtext">worker listener receives:</text>
+  <text x="1196" y="1262" class="boxtext">cmd=unmap_from_kv_tensors</text>
+  <text x="1196" y="1281" class="small">tp_ipc_util.py:124, 189, 243</text>
+
+  <rect x="1660" y="1210" width="350" height="72" class="box"/>
+  <text x="1676" y="1237" class="boxtext">direct call:</text>
+  <text x="1676" y="1257" class="boxtext">unmap_from_kv_tensors(offsets)</text>
+
+  <path d="M1720 1048 L460 1210" class="arrow"/>
+  <path d="M820 1246 L840 1246" class="arrow"/>
+  <path d="M1120 1246 L1180 1246" class="arrow"/>
+  <path d="M1120 1246 L1660 1246" class="arrow"/>
+  <text x="1140" y="1228" class="hint">yes</text>
+  <text x="1140" y="1268" class="hint">no</text>
+
+  <rect x="40" y="1400" width="2020" height="220" class="lane"/>
+  <text x="60" y="1430" class="lane-title">Layer 6: C++ Allocator / CUDA VMM</text>
+
+  <rect x="120" y="1460" width="520" height="66" class="box"/>
+  <text x="136" y="1487" class="boxtext">pybind: unmap_from_kv_tensors(offsets)</text>
+  <text x="136" y="1506" class="small">csrc/torch_bindings.cpp:49-53</text>
+
+  <rect x="700" y="1450" width="590" height="86" class="box"/>
+  <text x="716" y="1477" class="boxtext">FTensorAllocator::unmap_from_kv_tensors(offsets)</text>
+  <text x="716" y="1497" class="boxtext">iterate tensors/layers and call ftensor->unmap(offset)</text>
+  <text x="716" y="1516" class="small">csrc/allocator.cpp:177-213</text>
+
+  <rect x="1350" y="1450" width="650" height="106" class="box"/>
+  <text x="1366" y="1477" class="boxtext">FTensor::unmap(offset)</text>
+  <text x="1366" y="1497" class="boxtext">1) cuMemUnmap(vaddr + offset, page_size)</text>
+  <text x="1366" y="1517" class="boxtext">2) map_(zero_page, offset)  // keep memory integrity</text>
+  <text x="1366" y="1536" class="small">csrc/ftensor.cpp:91-108</text>
+
+  <rect x="1750" y="1570" width="250" height="40" class="box"/>
+  <text x="1766" y="1596" class="boxtext">return to caller</text>
+
+  <path d="M1400 1296 L380 1460" class="arrow"/>
+  <path d="M1835 1282 L380 1460" class="arrow"/>
+  <path d="M640 1493 L700 1493" class="arrow"/>
+  <path d="M1290 1493 L1350 1493" class="arrow"/>
+  <path d="M1870 1556 L1870 1570" class="arrow"/>
+
+  <text x="60" y="1640" class="hint">Notes: This chart emphasizes free() interfaces per layer. Debug/stat logging branches are omitted for readability.</text>
+</svg>

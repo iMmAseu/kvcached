@@ -1,0 +1,14 @@
+{
+  "elapsed_total_s": 17.66,
+  "free_pages": {
+    "calls": 0,
+    "pages_freed": 0,
+    "total_time_ms": 0.0
+  },
+  "unmap_pages": {
+    "calls": 0,
+    "pages_unmapped": 0,
+    "total_time_ms": 0.0,
+    "avg_time_per_call_ms": 0
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''d:/proj/kvcached/kvcached/kv_cache_manager.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''kv_cache_manager.py: OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''d:/proj/kvcached/kvcached/page_allocator.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''page_allocator.py: OK''\\)\")"
+    ]
+  }
+}
