@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="At first glance, this looked like a small integration detail: once `vLLM --async-scheduling` is enabled, does `kvcached` really follow the same path? But once the investigation moved to the `mp` backend, the core issue q">
+  <title>vLLM Async Scheduling + MP in kvcached</title>
+  <style>
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-muted: #f9fbff;
+  --text: #1f2937;
+  --text-soft: #4b5563;
+  --border: #d7deea;
+  --accent: #0f4c81;
+  --accent-soft: #e9f2fb;
+  --code-bg: #f3f6fa;
+  --shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  --font-sans: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans", Arial, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
+  --radius: 18px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #f7f9fc 0%, #f3f6fb 100%);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.78;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.hero,
+.toc,
+.content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.hero {
+  padding: 30px 34px 26px;
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 16px 0 0;
+  color: var(--text-soft);
+  font-size: 16px;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-top: 20px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid #cfe1f2;
+}
+
+.toc {
+  padding: 22px 28px;
+  margin-bottom: 22px;
+}
+
+.toc h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.toc ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.toc li {
+  margin: 8px 0;
+}
+
+.content {
+  padding: 28px 34px 38px;
+}
+
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  scroll-margin-top: 24px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.content h2 {
+  margin: 34px 0 14px;
+  padding-top: 8px;
+  font-size: 28px;
+}
+
+.content h3 {
+  margin: 28px 0 12px;
+  font-size: 22px;
+}
+
+.content h4 {
+  margin: 24px 0 10px;
+  font-size: 18px;
+}
+
+.content p {
+  margin: 14px 0;
+}
+
+.content ul,
+.content ol {
+  margin: 14px 0 18px;
+  padding-left: 24px;
+}
+
+.content li {
+  margin: 8px 0;
+}
+
+.content code {
+  padding: 0.15em 0.4em;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+}
+
+.content pre {
+  margin: 18px 0;
+  padding: 18px 18px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f6f8fb;
+}
+
+.content pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+}
+
+.table-wrap {
+  margin: 18px 0 22px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+thead {
+  background: var(--surface-muted);
+}
+
+th,
+td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.footer {
+  margin-top: 18px;
+  color: var(--text-soft);
+  font-size: 13px;
+  text-align: center;
+}
+
+.landing {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 20px 64px;
+}
+
+.landing-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 34px;
+}
+
+.landing-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.2;
+}
+
+.landing-card p {
+  margin: 0 0 22px;
+  color: var(--text-soft);
+}
+
+.landing-links {
+  display: grid;
+  gap: 12px;
+}
+
+.landing-link {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.landing-link small {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-weight: 400;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 18px 12px 36px;
+  }
+
+  .hero,
+  .toc,
+  .content {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .content {
+    padding-top: 22px;
+    padding-bottom: 28px;
+  }
+
+  .content h2 {
+    font-size: 24px;
+  }
+}
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <p class="eyebrow">kvcached Docs</p>
+      <h1>vLLM Async Scheduling + MP in kvcached</h1>
+      <p class="subtitle">At first glance, this looked like a small integration detail: once `vLLM --async-scheduling` is enabled, does `kvcached` really follow the same path? But once the investigation moved to the `mp` backend, the core issue quickly stopped being &quot;did one flag get forwarded?&quot; and became &quot;which process is actually allowed to touch KV tensors?&quot;</p>
+      <div class="hero-meta"><span class="meta-pill">Source: vllm_async_mp_investigation_en.md</span><span class="meta-pill">Static HTML suitable for direct GitHub Pages hosting</span><a class="meta-pill" href="vllm_async_mp_investigation.html">中文版</a></div>
+    </header>
+    <nav class="toc"><h2>Contents</h2><ul><li><a href="#section-1">The Short Version</a></li><li><a href="#section-2">Why the Real Issue Only Shows Up on `mp`</a></li><li><a href="#section-3">The `uni` Baseline</a></li><li><a href="#section-8">The Real Root Cause Under `mp + tp=1`</a></li><li><a href="#section-11">The Fix: Unify the Meaning of &quot;This Must Use Worker IPC&quot;</a></li><li><a href="#section-18">Validation After the Fix</a></li><li><a href="#section-21">Dual-GPU Follow-Up: `mp + tp=2`</a></li><li><a href="#section-24">Recommended Validation Workflow</a></li><li><a href="#section-27">What This Fix Actually Taught Us</a></li><li><a href="#section-28">Related Files</a></li><li><a href="#section-29">Related Artifacts</a></li></ul></nav>
+    <main class="content">
+      <p>At first glance, this looked like a small integration detail: once <code>vLLM --async-scheduling</code> is enabled, does <code>kvcached</code> really follow the same path? But once the investigation moved to the <code>mp</code> backend, the core issue quickly stopped being &quot;did one flag get forwarded?&quot; and became &quot;which process is actually allowed to touch KV tensors?&quot;</p><p>This write-up keeps the conclusions and the key data, but trims the story down to three steps: establish the <code>uni</code> baseline, isolate the real root cause under <code>mp + tp=1</code>, and then validate the fixed behavior on both single-GPU and dual-GPU runs.</p><h2 id="section-1">The Short Version</h2><p>At this point, the investigation and follow-up tests support five conclusions:</p><ul><li><code>--async-scheduling</code> and <code>--distributed-executor-backend</code> are independent knobs. One changes the scheduler; the other changes the execution model.</li><li>On the <code>uni</code> path, async scheduling itself already provides the main benefit. Forwarding <code>async_sched</code> into <code>kvcached</code> preserves that gain and adds a small extra improvement.</li><li>On the <code>mp</code> path, the real bug was not the <code>async_sched</code> flag itself. The real issue was that some KV tensor checks and <code>map/unmap</code> operations were still being executed in the wrong process.</li><li>After the fix, <code>mp + tp=1 + --async-scheduling</code> starts cleanly, logs clearly show async scheduling on both the vLLM side and the <code>kvcached</code> side, and the benchmark results are complete.</li><li>The <code>mp + tp=2</code> functional path is already validated, but the current dual-GPU async benchmark file is not a valid performance-comparison sample because the client started benchmarking before the service finished startup, which caused many <code>ConnectionRefused</code> failures.</li></ul><h2 id="section-2">Why the Real Issue Only Shows Up on <code>mp</code></h2><p>The most important boundary is to keep these two concepts separate:</p><ul><li><code>--async-scheduling</code> only changes the scheduler.</li><li><code>--distributed-executor-backend mp</code> is what splits vLLM into <code>EngineCore</code> and <code>Worker</code> processes.</li></ul><p>That immediately changes the debugging model:</p><ul><li>On the <code>uni</code> path, this is mostly a flag-propagation and performance-observation problem.</li><li>On the <code>mp</code> path, this becomes a process-boundary problem: does the current process really own the KV tensors it is trying to inspect or mutate?</li></ul><p>That is why <code>uni</code> is a useful control case, but <code>mp</code> is where the actual fix matters.</p><h2 id="section-3">The <code>uni</code> Baseline</h2><h3 id="section-4">Environment Variables</h3><pre><code class="language-bash">export MODEL=/root/data/models/Qwen/Qwen3-0.6B
+export ENABLE_KVCACHED=true
+export KVCACHED_AUTOPATCH=1
+export KVCACHED_LOG_LEVEL=INFO
+export VLLM_ENABLE_V1_MULTIPROCESSING=0</code></pre><h3 id="section-5">Server Commands</h3><p>Async disabled:</p><pre><code class="language-bash">vllm serve &quot;$MODEL&quot; \
+  --distributed-executor-backend uni \
+  --no-async-scheduling \
+  --tensor-parallel-size 1 \
+  --max-model-len 2048 \
+  --gpu-memory-utilization 0.8 \
+  --no-enable-prefix-caching \
+  --disable-log-requests \
+  --port 18000 2&gt;&amp;1 | tee uni_no_async.log</code></pre><p>Async enabled, before <code>kvcached</code> forwarded <code>async_sched</code>:</p><pre><code class="language-bash">vllm serve &quot;$MODEL&quot; \
+  --distributed-executor-backend uni \
+  --async-scheduling \
+  --tensor-parallel-size 1 \
+  --max-model-len 2048 \
+  --gpu-memory-utilization 0.8 \
+  --no-enable-prefix-caching \
+  --disable-log-requests \
+  --port 18000 2&gt;&amp;1 | tee old_async.log</code></pre><p>Async enabled, with <code>kvcached</code> also enabling <code>async_sched</code>:</p><pre><code class="language-bash">vllm serve &quot;$MODEL&quot; \
+  --distributed-executor-backend uni \
+  --async-scheduling \
+  --tensor-parallel-size 1 \
+  --max-model-len 2048 \
+  --gpu-memory-utilization 0.8 \
+  --no-enable-prefix-caching \
+  --disable-log-requests \
+  --port 18000 2&gt;&amp;1 | tee new_async.log</code></pre><h3 id="section-6">Benchmark Command</h3><pre><code class="language-bash">vllm bench serve \
+  --backend openai \
+  --base-url http://127.0.0.1:18000 \
+  --endpoint /v1/completions \
+  --model &quot;$MODEL&quot; \
+  --dataset-name random \
+  --input-len 512 \
+  --output-len 128 \
+  --num-prompts 200 \
+  --request-rate 8 \
+  --max-concurrency 16</code></pre><h3 id="section-7">Results</h3><p>Result files:</p><ul><li><code>results/bench_no_async.txt</code></li><li><code>results/bench_old_async.txt</code></li><li><code>results/bench_new_async.txt</code></li></ul><div class="table-wrap"><table><thead><tr><th>Case</th><th style="text-align:right">req/s</th><th style="text-align:right">total tok/s</th><th style="text-align:right">mean TTFT (ms)</th><th style="text-align:right">p99 TTFT (ms)</th><th style="text-align:right">mean TPOT (ms)</th><th style="text-align:right">p99 TPOT (ms)</th><th style="text-align:right">mean ITL (ms)</th></tr></thead><tbody><tr><td>no async</td><td style="text-align:right">7.880</td><td style="text-align:right">5043.05</td><td style="text-align:right">26.68</td><td style="text-align:right">48.33</td><td style="text-align:right">3.16</td><td style="text-align:right">4.18</td><td style="text-align:right">3.16</td></tr><tr><td>old async</td><td style="text-align:right">7.923</td><td style="text-align:right">5071.39</td><td style="text-align:right">27.39</td><td style="text-align:right">53.83</td><td style="text-align:right">1.88</td><td style="text-align:right">2.83</td><td style="text-align:right">1.88</td></tr><tr><td>new async</td><td style="text-align:right">7.927</td><td style="text-align:right">5072.77</td><td style="text-align:right">26.78</td><td style="text-align:right">50.56</td><td style="text-align:right">1.81</td><td style="text-align:right">2.53</td><td style="text-align:right">1.81</td></tr></tbody></table></div><p>The main observation is simple:</p><ul><li>Throughput barely moves.</li><li>The meaningful benefit appears in token-level latency.</li><li><code>TPOT/ITL</code> in <code>old async</code> improve by roughly 40% relative to <code>no async</code>.</li><li>Forwarding <code>async_sched</code> into <code>kvcached</code> preserves that gain and adds a small extra improvement.</li></ul><p>That baseline is important because it shows async scheduling itself is valid. The later <code>mp</code> issue is therefore not &quot;async is broken&quot; but &quot;the multiprocessing path is using the wrong process semantics.&quot;</p><h2 id="section-8">The Real Root Cause Under <code>mp + tp=1</code></h2><h3 id="section-9">The Two Early Symptoms</h3><p>The first visible error was a compatibility issue:</p><pre><code class="language-text">Failed to patch kv_cache_coordinator: &#x27;KVCacheCoordinatorNoPrefixCache&#x27; object has no attribute &#x27;vllm_config&#x27;</code></pre><p>That was fixed with:</p><pre><code class="language-python">_should_enable_async_sched(getattr(self, &quot;vllm_config&quot;, None))</code></pre><p>and by defining <code>_should_enable_async_sched(None) -&gt; False</code>.</p><p>The real root-cause signal was this later error:</p><pre><code class="language-text">ERROR: /root/kvcached/csrc/allocator.cpp:153: try to map to KV tensors when KV tensors are not created</code></pre><p>This already tells the whole story:</p><ul><li><code>kvcached</code> inside <code>EngineCore</code> was active</li><li>it tried to run <code>map_to_kv_tensors()</code> locally</li><li>but the process that actually created the KV tensors was the <code>Worker</code></li></ul><p>So the problem was not &quot;KV tensors do not exist at all.&quot; The problem was &quot;this process is not the one that owns them.&quot;</p><h3 id="section-10">The Root Cause in One Sentence</h3><p>The old logic implicitly assumed:</p><ul><li><code>world_size == 1</code></li><li>therefore local KV tensor access is safe</li></ul><p>But under <code>mp + tp=1</code>, that is false. <code>world_size == 1</code> only tells us the tensor-parallel size. It does not tell us whether the current process actually owns the FTensors / KV tensors.</p><h2 id="section-11">The Fix: Unify the Meaning of &quot;This Must Use Worker IPC&quot;</h2><p>The real fix was not to add more random conditionals. The correct approach was to define one semantic:</p><ul><li>if the current process is not the worker, it should not assume local KV tensor ownership</li></ul><p>That semantic is then reused both for readiness checks and for <code>map/unmap</code>.</p><h3 id="section-12">1. Add a Shared Decision: <code>should_use_worker_ipc()</code></h3><p>File:</p><ul><li><code>kvcached/integration/vllm/interfaces.py</code></li></ul><p>Added:</p><pre><code class="language-python">def should_use_worker_ipc() -&gt; bool:
+    return _kvcached_initialized and not _is_worker</code></pre><p>The important part here is the meaning of <code>_is_worker</code>:</p><ul><li>it indicates whether the current process is a vLLM worker process</li></ul><p>So the real meaning of this helper is:</p><ul><li><code>kvcached</code> is initialized</li><li>but the current process is not a worker</li><li>therefore KV tensor access should go through worker IPC instead of assuming local ownership</li></ul><h3 id="section-13">2. Why Repeated <code>init_kvcached()</code> Calls Need to Upgrade State</h3><p>There is another important block in <a href="d:/proj/kvcached/kvcached_async/kvcached/integration/vllm/interfaces.py">interfaces.py</a>:</p><pre><code class="language-python">if is_worker and not _is_worker:
+    _is_worker = True
+if async_sched and not _async_sched:
+    _async_sched = True
+    logger.info(&quot;kvcached async scheduler enabled&quot;)</code></pre><p>This is not a second initialization. It is state correction on repeated init calls.</p><p>There are two kinds of names here:</p><ul><li><code>is_worker</code> / <code>async_sched</code></li></ul><p>the facts provided by this specific <code>init_kvcached()</code> call</p><ul><li><code>_is_worker</code> / <code>_async_sched</code></li></ul><p>the global state already remembered inside the current process</p><p>These updates are intentionally one-way:</p><ul><li>if a later call proves this process is actually a worker, <code>_is_worker</code> is upgraded from <code>False</code> to <code>True</code></li><li>if a later call proves async scheduling is enabled, <code>_async_sched</code> is upgraded from <code>False</code> to <code>True</code></li></ul><p>Without this, the process could remain stuck with incomplete earlier state, even after later calls provide the correct role information.</p><h3 id="section-14">3. Why the &quot;KV Tensors Created&quot; Check Also Had to Change</h3><p>This is exactly where the <code>FTensorAllocator.num_layers == 0</code> issue belongs.</p><p>The old problem was:</p><ul><li><code>KVCacheManager._post_init()</code> waits until KV tensors are created</li><li>if it runs <code>kv_tensors_created()</code> locally inside <code>EngineCore</code></li><li>it checks the allocator state inside the current process</li><li>but under <code>mp</code>, <code>FTensorAllocator</code> is initialized inside the <code>Worker</code>, not inside <code>EngineCore</code></li><li>so the local state can still look like <code>num_layers == 0</code></li><li>and <code>kvcached</code> incorrectly concludes that KV tensors have not been created yet</li></ul><p>That is why this logic was changed to:</p><pre><code class="language-python">try:
+    from kvcached.integration.vllm.interfaces import should_use_worker_ipc
+    vllm_remote = should_use_worker_ipc()
+except ImportError:
+    vllm_remote = False
+
+if self.world_size &gt; 1 or vllm_remote:
+    return broadcast_kv_tensors_created(...)
+else:
+    return kv_tensors_created(...)</code></pre><p>The meaning is:</p><ul><li>in a normal local case, keep checking locally</li><li>but in a non-worker vLLM process, stop checking local state</li><li>instead, ask the worker over IPC</li></ul><h3 id="section-15">4. Why <code>broadcast_kv_tensors_created(...)</code> Can Query the Worker State</h3><p>It does not &quot;know&quot; the state by itself. It sends an IPC request to the worker and lets the worker answer.</p><p>Inside <code>tp_ipc_util.py</code>, it sends:</p><pre><code class="language-python">{&quot;cmd&quot;: &quot;kv_tensors_created&quot;, &quot;group_id&quot;: group_id}</code></pre><p>The worker receives that message and executes:</p><pre><code class="language-python">created = kv_tensors_created(group_id=group_id)</code></pre><p>The important part is where that call runs:</p><ul><li>not inside <code>EngineCore</code></li><li>inside the worker process</li></ul><p>So the queried state is the worker&#x27;s own <code>FTensorAllocator</code> / KV tensor state, not the empty local state inside <code>EngineCore</code>.</p><p>That is exactly why this fixes the case where the current process still sees <code>num_layers == 0</code> and would otherwise falsely conclude that KV tensors are missing.</p><p>This also works for <code>tp=1</code>:</p><ul><li><code>tp_size = 1</code></li><li>the IPC request is sent only to <code>rank=0</code></li></ul><p>So it becomes &quot;ask the only worker process directly.&quot;</p><h3 id="section-16">5. Why the <code>map/unmap</code> Branch Is the Core Runtime Fix</h3><p>File:</p><ul><li><code>kvcached/page_allocator.py</code></li></ul><p>The key change is:</p><pre><code class="language-python">if self.world_size &gt; 1 or _should_use_worker_ipc():
+    broadcast_map_to_kv_tensors(...)
+else:
+    map_to_kv_tensors(...)</code></pre><p>and similarly for unmap:</p><pre><code class="language-python">if self.world_size &gt; 1 or _should_use_worker_ipc():
+    broadcast_unmap_from_kv_tensors(...)
+else:
+    unmap_from_kv_tensors(...)</code></pre><p>This is very close to the most important runtime behavior change in the whole fix.</p><p>Why:</p><ul><li>the old logic only checked <code>world_size &gt; 1</code></li><li>under <code>mp + tp=1</code>, that caused the local <code>map_to_kv_tensors()</code> branch to run</li><li>but the actual KV tensors belonged to the <code>Worker</code>, not the <code>EngineCore</code></li></ul><p>So <code>broadcast_map_to_kv_tensors(...)</code> is not solving an &quot;offset conflict.&quot; It is solving a &quot;the operation was sent to the wrong process&quot; conflict.</p><h3 id="section-17">6. Why <code>broadcast_map_to_kv_tensors(...)</code> Still Works in Single-GPU Mode</h3><p>It does not operate using only <code>world_size / pp_rank / group_id</code>. The most important payload also includes:</p><ul><li><code>offsets</code></li></ul><p>which are the page-memory offsets that must be mapped.</p><p>Internally it:</p><ul><li>constructs a message</li></ul><pre><code class="language-python">{&quot;cmd&quot;: &quot;map_to_kv_tensors&quot;, &quot;offsets&quot;: offsets, &quot;group_id&quot;: group_id}</code></pre><ul><li>then sends that message to each rank:</li></ul><pre><code class="language-python">for rank in range(tp_size)</code></pre><p>So when <code>tp=1</code>:</p><ul><li><code>range(1)</code> means only rank 0</li><li>the message is sent to the only worker</li></ul><p>The worker then executes:</p><pre><code class="language-python">map_to_kv_tensors(msg[&quot;offsets&quot;], group_id=group_id)</code></pre><p>So the real flow is:</p><ul><li><code>EngineCore</code> decides which offsets need to be mapped</li><li>but it no longer maps them locally</li><li>it sends the command to the worker that actually owns the KV tensors</li></ul><p>That is why <code>broadcast</code> here really means &quot;use the worker-side IPC path.&quot; In the single-worker case, the broadcast simply degenerates into a single worker message.</p><h2 id="section-18">Validation After the Fix</h2><h3 id="section-19">Unit Tests</h3><pre><code class="language-bash">PYTHONPATH=d:\proj\kvcached\kvcached_async pytest tests\test_vllm_async_sched.py -q</code></pre><p>Result:</p><pre><code class="language-text">3 passed</code></pre><h3 id="section-20"><code>mp + tp=1</code> Startup and Benchmark</h3><p>From <code>results/mp_new_async.log</code>, the following are now clearly visible:</p><ul><li><code>world_size=1</code></li><li><code>Worker 0 IPC listener started</code></li><li><code>kvcached async scheduler enabled</code></li><li><code>Init kvcached KV cache allocator: ... world_size=1, async_sched=True</code></li><li><code>Application startup complete.</code></li></ul><p>The earlier failure is no longer present:</p><pre><code class="language-text">try to map to KV tensors when KV tensors are not created</code></pre><p>Relevant benchmark files:</p><ul><li><code>results/mp_tp1_bench_no_async.txt</code></li><li><code>results/mp_tp1_bench_new_async.txt</code></li></ul><div class="table-wrap"><table><thead><tr><th>Case</th><th style="text-align:right">Success / Fail</th><th style="text-align:right">req/s</th><th style="text-align:right">total tok/s</th><th style="text-align:right">mean TTFT (ms)</th><th style="text-align:right">p99 TTFT (ms)</th><th style="text-align:right">mean TPOT (ms)</th><th style="text-align:right">p99 TPOT (ms)</th><th style="text-align:right">mean ITL (ms)</th><th style="text-align:right">p99 ITL (ms)</th></tr></thead><tbody><tr><td>mp tp=1 no async</td><td style="text-align:right">200 / 0</td><td style="text-align:right">7.87</td><td style="text-align:right">5037.54</td><td style="text-align:right">26.63</td><td style="text-align:right">50.58</td><td style="text-align:right">3.16</td><td style="text-align:right">4.08</td><td style="text-align:right">3.16</td><td style="text-align:right">15.56</td></tr><tr><td>mp tp=1 new async</td><td style="text-align:right">200 / 0</td><td style="text-align:right">7.93</td><td style="text-align:right">5072.18</td><td style="text-align:right">25.78</td><td style="text-align:right">46.45</td><td style="text-align:right">1.90</td><td style="text-align:right">2.63</td><td style="text-align:right">1.90</td><td style="text-align:right">13.80</td></tr></tbody></table></div><p>The conclusion is straightforward:</p><ul><li>throughput barely changes</li><li>the meaningful async gain still appears in token-level latency</li><li><code>TPOT/ITL</code> improve from <code>3.16ms</code> to <code>1.90ms</code>, again close to a 40% reduction</li></ul><h2 id="section-21">Dual-GPU Follow-Up: <code>mp + tp=2</code></h2><h3 id="section-22">What Is Already Confirmed</h3><p>Relevant files:</p><ul><li><code>results/mp_tp2_no_async.log</code></li><li><code>results/mp_tp2_new_async.log</code></li></ul><p>From <code>results/mp_tp2_new_async.log</code>, we can confirm:</p><ul><li>vLLM prints <code>Asynchronous scheduling is enabled.</code></li><li><code>world_size=2</code></li><li>both worker listeners are started</li><li>the allocator log shows <code>world_size=2, async_sched=True</code></li><li>the service eventually prints <code>Application startup complete.</code></li></ul><p>That is enough to say the dual-GPU async startup and service-registration path works.</p><h3 id="section-23">How to Interpret the Current Dual-GPU Benchmark</h3><p>The clean baseline sample is:</p><ul><li><code>results/mp_tp2_bench_no_async.txt</code></li></ul><div class="table-wrap"><table><thead><tr><th>Case</th><th style="text-align:right">Success / Fail</th><th style="text-align:right">req/s</th><th style="text-align:right">total tok/s</th><th style="text-align:right">mean TTFT (ms)</th><th style="text-align:right">p99 TTFT (ms)</th><th style="text-align:right">mean TPOT (ms)</th><th style="text-align:right">p99 TPOT (ms)</th><th style="text-align:right">mean ITL (ms)</th><th style="text-align:right">p99 ITL (ms)</th></tr></thead><tbody><tr><td>mp tp=2 no async</td><td style="text-align:right">200 / 0</td><td style="text-align:right">7.89</td><td style="text-align:right">5049.25</td><td style="text-align:right">31.90</td><td style="text-align:right">56.59</td><td style="text-align:right">3.21</td><td style="text-align:right">5.55</td><td style="text-align:right">3.21</td><td style="text-align:right">20.52</td></tr></tbody></table></div><p>The current async sample:</p><ul><li><code>results/mp_tp2_bench_new_async.txt</code></li></ul><p>should not be treated as a final performance-comparison sample:</p><div class="table-wrap"><table><thead><tr><th>Case</th><th style="text-align:right">Success / Fail</th><th style="text-align:right">req/s</th><th style="text-align:right">total tok/s</th><th style="text-align:right">mean TTFT (ms)</th><th style="text-align:right">p99 TTFT (ms)</th><th style="text-align:right">mean TPOT (ms)</th><th style="text-align:right">p99 TPOT (ms)</th><th style="text-align:right">mean ITL (ms)</th><th style="text-align:right">p99 ITL (ms)</th></tr></thead><tbody><tr><td>mp tp=2 new async</td><td style="text-align:right">45 / 155</td><td style="text-align:right">1.78</td><td style="text-align:right">1141.20</td><td style="text-align:right">34.54</td><td style="text-align:right">60.72</td><td style="text-align:right">2.00</td><td style="text-align:right">2.62</td><td style="text-align:right">2.00</td><td style="text-align:right">20.13</td></tr></tbody></table></div><p>The reason is not simply that the numbers are worse. This sample contains many:</p><pre><code class="language-text">ConnectionRefusedError: [Errno 111] Connect call failed (&#x27;127.0.0.1&#x27;, 18000)
+Cannot connect to host 127.0.0.1:18000</code></pre><p>And the timestamps show:</p><ul><li>the benchmark started at 2026-04-02 14:05:19</li><li>the service reached <code>Application startup complete.</code> only at 2026-04-02 14:05:39</li></ul><p>So the more reasonable interpretation is:</p><ul><li>the client started too early</li><li>the current dual-GPU async sample is an invalid performance sample</li><li>it proves the service eventually came up and handled requests, but it does not support a formal async-vs-no-async performance conclusion</li></ul><h2 id="section-24">Recommended Validation Workflow</h2><h3 id="section-25">Log Checks</h3><pre><code class="language-bash">grep -n &quot;kvcached async scheduler enabled&quot; mp_async.log
+grep -n &quot;Init kvcached KV cache allocator&quot; mp_async.log
+grep -n &quot;async_sched=True&quot; mp_async.log
+grep -n &quot;Asynchronous scheduling is enabled&quot; mp_async.log
+grep -Ei &quot;try to map to KV tensors|Failed to patch kv_cache_coordinator|ERROR|Traceback&quot; mp_async.log</code></pre><p>For <code>tp=2</code>, also verify:</p><pre><code class="language-bash">grep -n &quot;world_size=2&quot; mp_tp2_new_async.log
+grep -n &quot;Worker 0 IPC listener started&quot; mp_tp2_new_async.log
+grep -n &quot;Worker 1 IPC listener started&quot; mp_tp2_new_async.log</code></pre><h3 id="section-26">Benchmark Command</h3><pre><code class="language-bash">vllm bench serve \
+  --backend openai \
+  --base-url http://127.0.0.1:18000 \
+  --endpoint /v1/completions \
+  --model &quot;$MODEL&quot; \
+  --dataset-name random \
+  --input-len 512 \
+  --output-len 128 \
+  --num-prompts 200 \
+  --request-rate 8 \
+  --max-concurrency 16</code></pre><p>If you want a valid dual-GPU async performance sample, the most important thing is not changing the benchmark parameters. The important thing is:</p><ul><li>wait until the log explicitly shows <code>Application startup complete.</code></li><li>then start the benchmark, or enable endpoint readiness checking</li></ul><h2 id="section-27">What This Fix Actually Taught Us</h2><p>On the surface, this looked like &quot;async scheduling breaks <code>mp</code>.&quot; The deeper lesson is simpler:</p><ul><li><code>world_size</code> only describes parallel scale</li><li>it does not tell us whether the current process owns the KV tensors</li></ul><p>For <code>kvcached</code>, the important distinction is:</p><ul><li>does this process really own the local KV tensors?</li><li>or must it inspect and mutate them through worker IPC?</li></ul><p>Once that semantic is made explicit, readiness checks, <code>map/unmap</code>, logging, and regression tests all line up naturally.</p><p>At this point, the correct status summary is:</p><ul><li>the <code>uni</code> path is healthy and does not reproduce the <code>mp</code> startup issue</li><li><code>mp + tp=1 + --async-scheduling</code> has been fixed</li><li>the <code>mp + tp=1</code> benchmark shows the async gain mainly in token-level latency</li><li><code>mp + tp=2</code> has passed startup and functional validation</li><li>dual-GPU async performance still needs one clean rerun after endpoint readiness</li></ul><h2 id="section-28">Related Files</h2><ul><li><code>kvcached/integration/vllm/patches.py</code></li><li><code>kvcached/integration/vllm/interfaces.py</code></li><li><code>kvcached/kv_cache_manager.py</code></li><li><code>kvcached/page_allocator.py</code></li><li><code>tests/test_vllm_async_sched.py</code></li><li><code>docs/vllm_async_mp_investigation_en.md</code></li></ul><h2 id="section-29">Related Artifacts</h2><ul><li><code>results/bench_no_async.txt</code></li><li><code>results/bench_old_async.txt</code></li><li><code>results/bench_new_async.txt</code></li><li><code>results/mp_async.log</code></li><li><code>results/mp_no_async.log</code></li><li><code>results/mp_new_async.log</code></li><li><code>results/mp_tp1_bench_no_async.txt</code></li><li><code>results/mp_tp1_bench_new_async.txt</code></li><li><code>results/mp_tp2_no_async.log</code></li><li><code>results/mp_tp2_new_async.log</code></li><li><code>results/mp_tp2_bench_no_async.txt</code></li><li><code>results/mp_tp2_bench_new_async.txt</code></li><li><code>results/error_info.png</code></li><li><code>results/no_async_info.png</code></li><li><code>results/old_version_info.png</code></li></ul>
+    </main>
+    <div class="footer">Generated from Markdown for static hosting.</div>
+  </div>
+</body>
+</html>
