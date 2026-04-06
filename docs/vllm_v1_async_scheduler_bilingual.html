@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vLLM V1 Async Scheduler</title>
+  <style>
+    :root {
+      --bg: #f6f0e8;
+      --panel: #fffaf5;
+      --soft: #fff1e3;
+      --ink: #1e1a17;
+      --muted: #675f56;
+      --line: #ddcfbf;
+      --accent: #b6521f;
+      --accent2: #1e6f5b;
+      --active: #201711;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(182, 82, 31, 0.12), transparent 28%),
+        linear-gradient(180deg, #fbf7f2, var(--bg));
+      line-height: 1.7;
+    }
+
+    .wrap {
+      width: min(1020px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 56px;
+    }
+
+    .hero, .card, .summary {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(58, 34, 14, 0.08);
+    }
+
+    .hero {
+      padding: 30px 24px;
+      background: linear-gradient(135deg, #b6521f, #8f3f17);
+      color: #fff8f1;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.1;
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      color: rgba(255, 248, 241, 0.92);
+    }
+
+    .toolbar {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .switcher {
+      display: inline-flex;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+    }
+
+    .switcher button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font: inherit;
+      cursor: pointer;
+      background: transparent;
+      color: rgba(255, 248, 241, 0.88);
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .switcher button.active {
+      background: #fff7f0;
+      color: var(--active);
+    }
+
+    .switcher button:hover {
+      transform: translateY(-1px);
+    }
+
+    .page {
+      margin-top: 18px;
+    }
+
+    .card {
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 1.4rem;
+    }
+
+    p, ul, ol {
+      margin: 0 0 12px;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code, pre {
+      font-family: Consolas, "SFMono-Regular", monospace;
+    }
+
+    code {
+      background: rgba(0, 0, 0, 0.06);
+      padding: 0.12em 0.4em;
+      border-radius: 7px;
+    }
+
+    pre {
+      margin: 12px 0;
+      padding: 14px;
+      border-radius: 14px;
+      background: #241d18;
+      color: #fff7ef;
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2e2d1;
+    }
+
+    .summary {
+      padding: 22px;
+      background: linear-gradient(135deg, #1e6f5b, #155443);
+      color: #f5fffb;
+    }
+
+    .summary h2 {
+      margin-top: 0;
+    }
+
+    .summary a {
+      color: #f5fffb;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 720px) {
+      .toolbar {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>vLLM V1 Async Scheduler</h1>
+      <p id="hero-subtitle">Single-page documentation with language toggle.</p>
+      <div class="toolbar">
+        <div class="switcher" aria-label="Language switcher">
+          <button id="btn-zh" type="button" class="active">中文</button>
+          <button id="btn-en" type="button">English</button>
+        </div>
+      </div>
+    </section>
+
+    <main class="page">
+      <div id="page-zh">
+        <section class="card">
+          <h2>概述</h2>
+          <p>vLLM V1 的 async scheduler 不是一个完全独立的新系统，而是在 V1 <code>Scheduler</code> 之上加出的异步执行路径。它的目标是让 CPU 继续准备后续调度和状态更新时，GPU 不必因为等待结果回收而空转。</p>
+          <ol>
+            <li>配置层把 <code>async_scheduling=True</code> 映射到 <code>AsyncScheduler</code>。</li>
+            <li><code>EngineCore</code> 和 executor 允许多个 batch 同时 in-flight。</li>
+            <li>scheduler 与 worker 通过 placeholder、异步输出包装和队列维持请求状态一致。</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>启用方式</h2>
+          <p>入口是 <code>SchedulerConfig.async_scheduling</code>：</p>
+          <ul>
+            <li><code>False</code>：显式关闭。</li>
+            <li><code>True</code>：显式开启，不兼容时直接报错。</li>
+            <li><code>None</code>：由 <code>VllmConfig</code> 自动判定，兼容时自动开启。</li>
+          </ul>
+          <p>当前代码中：</p>
+          <ol>
+            <li><code>SchedulerConfig.get_scheduler_cls()</code> 在开启时返回 <code>vllm.v1.core.sched.async_scheduler.AsyncScheduler</code>。</li>
+            <li><code>VllmConfig</code> 会检查 executor、speculative decoding 等兼容性。</li>
+            <li>CPU backend 会直接把 <code>scheduler_config.async_scheduling</code> 设为 <code>False</code>。</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>兼容性</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>当前状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>基类 <code>Executor.supports_async_scheduling()</code></td><td><code>False</code></td></tr>
+              <tr><td><code>UniProcExecutor</code></td><td>支持</td></tr>
+              <tr><td><code>ExecutorWithExternalLauncher</code></td><td>支持</td></tr>
+              <tr><td><code>MultiprocExecutor</code></td><td>支持</td></tr>
+              <tr><td>spec decode</td><td>仅限当前白名单</td></tr>
+              <tr><td><code>disable_padded_drafter_batch=True</code></td><td>不兼容</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card">
+          <h2>运行流程</h2>
+          <pre>Request
+  -> Scheduler / AsyncScheduler
+  -> SchedulerOutput
+  -> Executor.execute_model(non_block=True)
+  -> Worker / ModelRunner
+  -> ModelRunnerOutput or AsyncModelRunnerOutput
+  -> Scheduler.update_from_output(...)
+  -> next schedule()</pre>
+          <p><code>EngineCore</code> 是中枢。它选择 scheduler 类、读取 executor 的并发 batch 能力，并在 <code>step()</code> 或 <code>step_with_batch_queue()</code> 中把调度和结果回收错开。</p>
+        </section>
+
+        <section class="card">
+          <h2>批次队列</h2>
+          <p>异步模式下最重要的运行时变化是允许多个 batch 同时在飞：</p>
+          <ol>
+            <li><code>UniProcExecutor.max_concurrent_batches</code> 在 async 模式下通常为 <code>2</code>。</li>
+            <li><code>MultiprocExecutor.max_concurrent_batches</code> 在无 PP 时通常也为 <code>2</code>。</li>
+            <li>若启用 pipeline parallelism，则并发 batch 数变成 <code>pp_size</code>，因为填满流水线本身就需要多个 batch。</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>占位模型</h2>
+          <p><code>AsyncScheduler</code> 相比普通 <code>Scheduler</code> 最关键的新增，是 <code>num_output_placeholders</code>。</p>
+          <p>当 request 已经被调度、但本轮真实输出 token 还没完全回到账本时，scheduler 会先把逻辑上的输出长度记上去。若本轮包含 speculative tokens，也会先占位。</p>
+          <p>这让“输出尚未完全回收”和“逻辑长度已经增长”可以同时成立。</p>
+        </section>
+
+        <section class="card">
+          <h2>请求记账</h2>
+          <p>理解 async scheduling 时，最关键的字段在 <code>vllm/v1/request.py</code>：</p>
+          <ol>
+            <li><code>num_output_placeholders</code></li>
+            <li><code>discard_latest_async_tokens</code></li>
+            <li><code>spec_token_ids</code></li>
+            <li><code>num_computed_tokens</code></li>
+          </ol>
+          <p>关键细节是：发送给 worker 的 <code>CachedRequestData.num_output_tokens</code> 使用的是 <code>req.num_output_tokens + req.num_output_placeholders</code>。</p>
+          <p>另外，在 <code>reset_prefix_cache(reset_running_requests=True)</code> 的强制 preempt 场景下，代码会设置：</p>
+          <ol>
+            <li><code>request.num_output_placeholders = 0</code></li>
+            <li><code>request.discard_latest_async_tokens = True</code></li>
+          </ol>
+          <p>后续 <code>AsyncScheduler._update_request_with_output()</code> 会丢弃那一个不该保留的异步 token，防止恢复后重复输出。</p>
+        </section>
+
+        <section class="card">
+          <h2>结构化输出与投机解码</h2>
+          <ol>
+            <li>speculative token 会先占位，稍后由 worker 补写真正 token id。</li>
+            <li>如果 draft token 被拒绝，scheduler 会回退 <code>num_computed_tokens</code>，async 场景下也会回退 <code>num_output_placeholders</code>。</li>
+            <li><code>SchedulerOutput.pending_structured_output_tokens=True</code> 时，<code>EngineCore.step_with_batch_queue()</code> 会延后采样，因为 grammar bitmask 还依赖前一轮真实 token。</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Worker 侧异步输出路径</h2>
+          <ol>
+            <li><code>AsyncModelRunnerOutput</code> 表示结果稍后才能真正取出，可能仍在做 host copy。</li>
+            <li><code>UniProcExecutor</code> 会把 <code>get_output()</code> 丢给后台线程。</li>
+            <li><code>MultiprocExecutor.WorkerProc</code> 在 async 模式下会启动 <code>async_output_copy_thread</code>，再把结果送入消息队列。</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>流水线并行</h2>
+          <p><code>PP + async scheduling</code> 下，请求即使还带着 <code>num_output_placeholders</code>，下一步仍然可以再次被调度。测试已经覆盖了这一点。对应地，scheduler 在这一路径下也不再依赖非 async PP 的那套 token 回传方式。</p>
+        </section>
+
+        <section class="card">
+          <h2>推荐阅读源码</h2>
+          <ol>
+            <li><code>vllm/config/scheduler.py</code></li>
+            <li><code>vllm/config/vllm.py</code></li>
+            <li><code>vllm/v1/core/sched/async_scheduler.py</code></li>
+            <li><code>vllm/v1/core/sched/scheduler.py</code></li>
+            <li><code>vllm/v1/request.py</code></li>
+            <li><code>vllm/v1/core/sched/output.py</code></li>
+            <li><code>vllm/v1/engine/core.py</code></li>
+            <li><code>vllm/v1/executor/uniproc_executor.py</code></li>
+            <li><code>vllm/v1/executor/multiproc_executor.py</code></li>
+            <li><code>tests/v1/core/test_async_scheduler.py</code></li>
+          </ol>
+        </section>
+
+        <section class="summary">
+          <h2>总结</h2>
+          <p>V1 async scheduler 的本质不是“把 scheduler 放到另一个线程”，而是通过多 in-flight batch、output placeholders、异步输出路径和特性兼容分支，让 CPU 调度与 GPU 执行真正重叠。</p>
+          <p><a href="./vllm_v1_async_scheduler_zh.md">打开中文 Markdown</a></p>
+        </section>
+      </div>
+
+      <div id="page-en" hidden>
+        <section class="card">
+          <h2>Overview</h2>
+          <p>The V1 async scheduler is not a separate scheduling subsystem. It is an asynchronous execution path layered on top of the V1 <code>Scheduler</code>, designed to keep GPU work overlapped with CPU-side scheduling and bookkeeping.</p>
+          <ol>
+            <li>Config maps <code>async_scheduling=True</code> to <code>AsyncScheduler</code>.</li>
+            <li><code>EngineCore</code> and the executor allow multiple in-flight batches.</li>
+            <li>Scheduler and worker keep request state coherent with placeholders, async output wrappers, and queues.</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Enablement</h2>
+          <p>The entry point is <code>SchedulerConfig.async_scheduling</code>:</p>
+          <ul>
+            <li><code>False</code>: explicitly disabled.</li>
+            <li><code>True</code>: explicitly enabled, with fail-fast incompatibility checks.</li>
+            <li><code>None</code>: auto-detected by <code>VllmConfig</code>.</li>
+          </ul>
+          <p>In the current code:</p>
+          <ol>
+            <li><code>SchedulerConfig.get_scheduler_cls()</code> returns <code>vllm.v1.core.sched.async_scheduler.AsyncScheduler</code> when enabled.</li>
+            <li><code>VllmConfig</code> validates executor support and speculative-decoding compatibility.</li>
+            <li>The CPU backend forces <code>scheduler_config.async_scheduling=False</code>.</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Compatibility</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Current Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Base <code>Executor.supports_async_scheduling()</code></td><td><code>False</code></td></tr>
+              <tr><td><code>UniProcExecutor</code></td><td>Supported</td></tr>
+              <tr><td><code>ExecutorWithExternalLauncher</code></td><td>Supported</td></tr>
+              <tr><td><code>MultiprocExecutor</code></td><td>Supported</td></tr>
+              <tr><td>Spec decode</td><td>Restricted to the current allowlist</td></tr>
+              <tr><td><code>disable_padded_drafter_batch=True</code></td><td>Incompatible</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card">
+          <h2>Runtime Flow</h2>
+          <pre>Request
+  -> Scheduler / AsyncScheduler
+  -> SchedulerOutput
+  -> Executor.execute_model(non_block=True)
+  -> Worker / ModelRunner
+  -> ModelRunnerOutput or AsyncModelRunnerOutput
+  -> Scheduler.update_from_output(...)
+  -> next schedule()</pre>
+          <p><code>EngineCore</code> is the coordinator. It selects the scheduler class, reads executor batch concurrency, and separates scheduling from result collection in <code>step()</code> or <code>step_with_batch_queue()</code>.</p>
+        </section>
+
+        <section class="card">
+          <h2>Batch Queue</h2>
+          <p>The main runtime change is support for multiple in-flight batches:</p>
+          <ol>
+            <li><code>UniProcExecutor.max_concurrent_batches</code> is typically <code>2</code> in async mode.</li>
+            <li><code>MultiprocExecutor.max_concurrent_batches</code> is also typically <code>2</code> without PP.</li>
+            <li>With pipeline parallelism, the concurrency becomes <code>pp_size</code> because filling the pipeline already requires multiple batches.</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Placeholder Model</h2>
+          <p>The key addition in <code>AsyncScheduler</code> is <code>num_output_placeholders</code>.</p>
+          <p>When a request has been scheduled but its real output tokens have not yet fully returned, the scheduler still advances logical output length by reserving placeholders. Speculative tokens are also counted as placeholders.</p>
+          <p>This is what allows “results not fully collected yet” and “logical length already advanced” to both be true.</p>
+        </section>
+
+        <section class="card">
+          <h2>Request Bookkeeping</h2>
+          <p>The most important fields for understanding async scheduling live in <code>vllm/v1/request.py</code>:</p>
+          <ol>
+            <li><code>num_output_placeholders</code></li>
+            <li><code>discard_latest_async_tokens</code></li>
+            <li><code>spec_token_ids</code></li>
+            <li><code>num_computed_tokens</code></li>
+          </ol>
+          <p>One crucial detail is that worker-facing <code>CachedRequestData.num_output_tokens</code> uses <code>req.num_output_tokens + req.num_output_placeholders</code>.</p>
+          <p>Also, in forced preemption via <code>reset_prefix_cache(reset_running_requests=True)</code>, the code sets:</p>
+          <ol>
+            <li><code>request.num_output_placeholders = 0</code></li>
+            <li><code>request.discard_latest_async_tokens = True</code></li>
+          </ol>
+          <p>Then <code>AsyncScheduler._update_request_with_output()</code> discards the async token that should no longer be kept, preventing duplicated output after resumption.</p>
+        </section>
+
+        <section class="card">
+          <h2>Structured Output And Spec Decode</h2>
+          <ol>
+            <li>Speculative tokens reserve placeholders first and get real token IDs later on the worker side.</li>
+            <li>If draft tokens are rejected, the scheduler rolls back <code>num_computed_tokens</code>, and in async mode also rolls back <code>num_output_placeholders</code>.</li>
+            <li>When <code>SchedulerOutput.pending_structured_output_tokens=True</code>, <code>EngineCore.step_with_batch_queue()</code> defers sampling because grammar-bitmask computation still depends on real tokens from the prior step.</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Worker Async Output Path</h2>
+          <ol>
+            <li><code>AsyncModelRunnerOutput</code> means the final result may still need later host-side materialization.</li>
+            <li><code>UniProcExecutor</code> runs <code>get_output()</code> in a background thread.</li>
+            <li><code>MultiprocExecutor.WorkerProc</code> starts <code>async_output_copy_thread</code> in async mode before enqueueing the result.</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Pipeline Parallelism</h2>
+          <p>Under <code>PP + async scheduling</code>, a request can be scheduled again even while it still carries <code>num_output_placeholders</code>. Tests explicitly cover this behavior. The scheduler also stops relying on the same token-return payload used by non-async PP.</p>
+        </section>
+
+        <section class="card">
+          <h2>Suggested Source Reading Order</h2>
+          <ol>
+            <li><code>vllm/config/scheduler.py</code></li>
+            <li><code>vllm/config/vllm.py</code></li>
+            <li><code>vllm/v1/core/sched/async_scheduler.py</code></li>
+            <li><code>vllm/v1/core/sched/scheduler.py</code></li>
+            <li><code>vllm/v1/request.py</code></li>
+            <li><code>vllm/v1/core/sched/output.py</code></li>
+            <li><code>vllm/v1/engine/core.py</code></li>
+            <li><code>vllm/v1/executor/uniproc_executor.py</code></li>
+            <li><code>vllm/v1/executor/multiproc_executor.py</code></li>
+            <li><code>tests/v1/core/test_async_scheduler.py</code></li>
+          </ol>
+        </section>
+
+        <section class="summary">
+          <h2>Summary</h2>
+          <p>The essence of the V1 async scheduler is not simply “put the scheduler on another thread”. It is the combination of multiple in-flight batches, output placeholders, async output handling, and feature-specific compatibility logic that lets CPU scheduling overlap with GPU execution.</p>
+          <p><a href="./vllm_v1_async_scheduler_en.md">Open English Markdown</a></p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const btnZh = document.getElementById("btn-zh");
+    const btnEn = document.getElementById("btn-en");
+    const pageZh = document.getElementById("page-zh");
+    const pageEn = document.getElementById("page-en");
+    const subtitle = document.getElementById("hero-subtitle");
+    function setLang(lang) {
+      const isZh = lang === "zh";
+      pageZh.hidden = !isZh;
+      pageEn.hidden = isZh;
+      btnZh.classList.toggle("active", isZh);
+      btnEn.classList.toggle("active", !isZh);
+      document.documentElement.lang = isZh ? "zh-CN" : "en";
+      subtitle.textContent = isZh
+        ? "单页文档，点击按钮切换中英文，不再同时显示。"
+        : "Single-page documentation with a button-based language switch.";
+      try {
+        localStorage.setItem("docs_by_lang", lang);
+      } catch (e) {
+      }
+    }
+
+    btnZh.addEventListener("click", function () { setLang("zh"); });
+    btnEn.addEventListener("click", function () { setLang("en"); });
+
+    let initialLang = "zh";
+    try {
+      const saved = localStorage.getItem("docs_by_lang");
+      if (saved === "zh" || saved === "en") {
+        initialLang = saved;
+      }
+    } catch (e) {
+    }
+    setLang(initialLang);
+  </script>
+</body>
+</html>
